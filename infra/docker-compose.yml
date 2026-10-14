@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: calendar
       POSTGRES_DB: calendar
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -34,7 +34,11 @@ services:
       timeout: 5s
       retries: 10
 
+  # MinIO временно отключён: официальный образ minio/minio больше не доступен
+  # публично (репозиторий закрыт, quay.io требует логин). Нужен только на этапах
+  # с файлами/вложениями. Запуск: docker compose --profile storage up -d
   minio:
+    profiles: ["storage"]
     image: minio/minio:latest
     container_name: calendar-minio
     restart: unless-stopped

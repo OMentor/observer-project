@@ -46,7 +46,7 @@ calendar-project/
 docker compose -f infra/docker-compose.yml up -d
 ```
 
-Сервисы: Postgres `localhost:5432`, Redis `localhost:6379`,
+Сервисы: Postgres `localhost:5433` (нативный Postgres занимает 5432), Redis `localhost:6379`,
 MinIO `localhost:9000` (консоль `:9001`), MailHog SMTP `localhost:1025` (UI `:8025`).
 
 ### 2. Backend
