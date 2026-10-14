@@ -9,18 +9,39 @@ class HomeShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    final index = location.startsWith('/profile') ? 1 : 0;
+    final index = _indexFor(location);
 
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (i) => context.go(i == 1 ? '/profile' : '/'),
+        onDestinationSelected: (i) => context.go(switch (i) {
+          1 => '/spaces',
+          2 => '/profile',
+          _ => '/',
+        }),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.calendar_today), label: 'Календарь'),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today),
+            label: 'Календарь',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.grid_view),
+            label: 'Пространства',
+          ),
           NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
         ],
       ),
     );
+  }
+
+  int _indexFor(String location) {
+    if (location.startsWith('/spaces')) {
+      return 1;
+    }
+    if (location.startsWith('/profile')) {
+      return 2;
+    }
+    return 0;
   }
 }

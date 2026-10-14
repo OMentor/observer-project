@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/auth/session_manager.dart';
+import 'core/storage/token_storage.dart';
 import 'core/theme/app_theme.dart';
 
-void main() {
-  runApp(const ProviderScope(child: PletenieApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final session = SessionManager(TokenStorage());
+  await session.load();
+  runApp(
+    ProviderScope(
+      overrides: [sessionManagerProvider.overrideWithValue(session)],
+      child: const PletenieApp(),
+    ),
+  );
 }
 
 class PletenieApp extends ConsumerWidget {
