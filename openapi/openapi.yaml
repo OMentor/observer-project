@@ -67,7 +67,7 @@ paths:
   /auth/refresh:
     post:
       tags: [Auth]
-      summary: Обновление access-токена
+      summary: Обновление access-токена (ротация refresh)
       security: []
       requestBody:
         required: true
@@ -76,24 +76,45 @@ paths:
             schema:
               type: object
               properties:
-                refresh_token: { type: string }
-              required: [refresh_token]
+                refreshToken: { type: string }
+              required: [refreshToken]
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                required: [accessToken, refreshToken]
         '401':
           description: Refresh недействителен
       x-audience: [web, mobile]
   /auth/logout:
     post:
       tags: [Auth]
-      summary: Выход (инвалидация refresh)
+      summary: Выход (инвалидация refresh-токена)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+              required: [refreshToken]
       responses:
-        '204': { description: Без содержимого }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
       x-audience: [web, mobile]
 
   /spaces:

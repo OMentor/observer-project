@@ -1,5 +1,5 @@
 import { Body, Controller, Post, HttpCode } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
   LoginDto,
@@ -11,7 +11,6 @@ import {
 } from './auth.dto';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { Public } from '../common/public.decorator';
-import { AuthUser, CurrentUser } from '../common/current-user.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -38,13 +37,10 @@ export class AuthController {
     return this.auth.refresh(dto);
   }
 
-  @ApiBearerAuth()
+  @Public()
   @HttpCode(200)
   @Post('logout')
-  logout(
-    @CurrentUser() user: AuthUser,
-    @Body(new ZodValidationPipe(refreshSchema)) dto: RefreshDto,
-  ) {
-    return this.auth.logout(user.id, dto.refreshToken);
+  logout(@Body(new ZodValidationPipe(refreshSchema)) dto: RefreshDto) {
+    return this.auth.logout(dto.refreshToken);
   }
 }

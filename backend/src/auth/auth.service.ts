@@ -105,10 +105,10 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, user.role);
   }
 
-  async logout(userId: string, refreshToken: string): Promise<{ success: true }> {
+  async logout(refreshToken: string): Promise<{ success: true }> {
     try {
       const payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken);
-      if (payload.jti && payload.sub === userId) {
+      if (payload.jti) {
         await this.redis.del(this.refreshKey(payload.jti));
       }
     } catch {

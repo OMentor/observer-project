@@ -171,7 +171,7 @@ describe('AuthService', () => {
         jti: 'j1',
       });
 
-      await service.logout('u1', 'token');
+      await service.logout('token');
 
       expect(redis.del).toHaveBeenCalledWith('refresh:j1');
     });

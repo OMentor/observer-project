@@ -11,6 +11,7 @@ Swagger UI: `http://localhost:3000/docs`.
 - `POST /auth/register`
 - `POST /auth/login`
 - `POST /auth/refresh`
+- `POST /auth/logout`
 - `POST /tokens/:token/activate`
 
 Access-токен живёт 15 минут, refresh — 30 дней (хранится в Redis, ротация при обновлении).
