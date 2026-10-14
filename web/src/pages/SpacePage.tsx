@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, KeyRound, Plus, Users } from 'lucide-react';
 import { createSource, fetchSpace } from '@/lib/services';
 import { cn } from '@/lib/cn';
+import { PRESET_LABELS } from '@/lib/presets';
+import { useSpaceAccess } from '@/hooks/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +28,7 @@ const PALETTE = [
 export function SpacePage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
+  const { preset, isFull } = useSpaceAccess(id);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [color, setColor] = useState(PALETTE[0]);
@@ -58,17 +61,40 @@ export function SpacePage() {
           Все пространства
         </Link>
         <div className="mt-2 flex items-center justify-between">
-          <h1 className="font-serif text-3xl text-text">
-            {isLoading ? 'Загрузка…' : space?.name}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-3xl text-text">
+              {isLoading ? 'Загрузка…' : space?.name}
+            </h1>
+            {preset && (
+              <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
+                {PRESET_LABELS[preset]}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
               <Link to="/calendar">Открыть календарь</Link>
             </Button>
-            <Button onClick={() => setOpen(true)}>
-              <Plus className="size-4" />
-              Источник
+            <Button variant="outline" asChild>
+              <Link to={`/members?space=${id}`}>
+                <Users className="size-4" />
+                Участники
+              </Link>
             </Button>
+            {isFull && (
+              <>
+                <Button variant="outline" asChild>
+                  <Link to={`/tokens?space=${id}`}>
+                    <KeyRound className="size-4" />
+                    Токены
+                  </Link>
+                </Button>
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="size-4" />
+                  Источник
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

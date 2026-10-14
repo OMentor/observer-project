@@ -1,5 +1,6 @@
 export type UserRole = 'USER' | 'ADMIN';
 export type Visibility = 'SHARED' | 'PRIVATE';
+export type Preset = 'FULL' | 'OWN' | 'BUSY' | 'READ';
 
 export type AuthUser = {
   id: string;
@@ -48,6 +49,7 @@ export type CalendarEvent = {
   rrule: string | null;
   created_at: string;
   updated_at: string;
+  busy?: boolean;
 };
 
 export type EventPayload = {
@@ -67,4 +69,35 @@ export type EventHistoryEntry = {
   old_data: Record<string, unknown> | null;
   new_data: Record<string, unknown> | null;
   user: { id: string; name: string };
+};
+
+export type Token = {
+  id: string;
+  space_id: string;
+  preset: Preset;
+  created_by: string;
+  expires_at: string | null;
+  used_at: string | null;
+  used_by: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  token?: string;
+  creator?: { id: string; name: string };
+  used_by_user?: { id: string; name: string } | null;
+};
+
+export type Member = {
+  id: string;
+  space_id: string;
+  user_id: string;
+  preset: Preset;
+  joined_at: string;
+  revoked_at: string | null;
+  user: { id: string; name: string; email: string };
+};
+
+export type TokenActivation = {
+  success: boolean;
+  space_id: string;
+  preset: Preset;
 };

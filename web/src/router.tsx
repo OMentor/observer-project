@@ -6,6 +6,10 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SpacesPage } from '@/pages/SpacesPage';
 import { SpacePage } from '@/pages/SpacePage';
+import { TokensPage } from '@/pages/TokensPage';
+import { MembersPage } from '@/pages/MembersPage';
+import { HistoryPage } from '@/pages/HistoryPage';
+import { ActivatePage } from '@/pages/ActivatePage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -23,33 +27,10 @@ export const router = createBrowserRouter([
       { index: true, element: <SpacesPage /> },
       { path: 'spaces/:id', element: <SpacePage /> },
       { path: 'calendar', element: <CalendarPage /> },
-      {
-        path: 'tokens',
-        element: (
-          <PlaceholderPage
-            title="Токены"
-            description="Генерация токенов доступа и пресеты появятся на этапе 2."
-          />
-        ),
-      },
-      {
-        path: 'members',
-        element: (
-          <PlaceholderPage
-            title="Участники"
-            description="Управление участниками пространства появится на этапе 2."
-          />
-        ),
-      },
-      {
-        path: 'history',
-        element: (
-          <PlaceholderPage
-            title="История"
-            description="Журнал изменений появится на этапе 2."
-          />
-        ),
-      },
+      { path: 'tokens', element: <TokensPage /> },
+      { path: 'members', element: <MembersPage /> },
+      { path: 'history', element: <HistoryPage /> },
+      { path: 'activate/:token', element: <ActivatePage /> },
       {
         path: 'settings',
         element: (

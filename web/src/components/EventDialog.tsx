@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createEvent, updateEvent } from '@/lib/services';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  createEvent,
+  fetchEventHistory,
+  updateEvent,
+} from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
-import type { CalendarEvent, Source } from '@/lib/types';
+import type { CalendarEvent, EventHistoryEntry, Source } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +20,12 @@ import {
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }
+
+const ACTION_LABELS: Record<EventHistoryEntry['action'], string> = {
+  CREATED: 'Создано',
+  UPDATED: 'Изменено',
+  DELETED: 'Удалено',
+};
 
 function toParts(iso: string): { date: string; time: string } {
   const d = new Date(iso);
@@ -92,6 +102,12 @@ function EventForm({
     initialForm(event, sources, defaultSourceId, defaultDate),
   );
   const [error, setError] = useState<string | null>(null);
+
+  const { data: history = [] } = useQuery({
+    queryKey: ['history', event?.id],
+    queryFn: () => fetchEventHistory(event?.id as string),
+    enabled: Boolean(event?.id) && !event?.busy,
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -246,6 +262,25 @@ function EventForm({
             className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
           />
         </div>
+
+        {event && history.length > 0 && (
+          <div className="space-y-2 border-t border-border pt-4">
+            <Label>История</Label>
+            <ul className="space-y-1">
+              {history.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-center justify-between text-xs text-muted"
+                >
+                  <span>
+                    {ACTION_LABELS[entry.action]} · {entry.user.name}
+                  </span>
+                  <span>{new Date(entry.created_at).toLocaleString('ru-RU')}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {error && <p className="text-xs text-conflict">{error}</p>}
 
