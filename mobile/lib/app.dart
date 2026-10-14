@@ -9,10 +9,13 @@ import 'core/storage/token_storage.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
+import 'features/activate/activate_screen.dart';
 import 'features/calendar/calendar_screen.dart';
+import 'features/members/members_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/spaces/space_screen.dart';
 import 'features/spaces/spaces_screen.dart';
+import 'features/tokens/tokens_screen.dart';
 import 'shared/widgets/home_shell.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
@@ -55,6 +58,36 @@ final allEventsProvider = FutureProvider<List<CalendarEvent>>((ref) async {
   return events;
 });
 
+final membersProvider = FutureProvider.family<List<Member>, String>(
+  (ref, spaceId) => ref.read(apiClientProvider).fetchMembers(spaceId),
+);
+
+final tokensProvider = FutureProvider.family<List<Token>, String>(
+  (ref, spaceId) => ref.read(apiClientProvider).fetchTokens(spaceId),
+);
+
+final eventHistoryProvider =
+    FutureProvider.family<List<EventHistoryEntry>, String>(
+  (ref, eventId) =>
+      ref.read(apiClientProvider).fetchEventHistory(eventId),
+);
+
+final spacePresetProvider = FutureProvider.family<String?, String>(
+  (ref, spaceId) async {
+    final user = ref.watch(authControllerProvider).asData?.value;
+    if (user == null) {
+      return null;
+    }
+    final members = await ref.watch(membersProvider(spaceId).future);
+    for (final member in members) {
+      if (member.userId == user.id) {
+        return member.preset;
+      }
+    }
+    return null;
+  },
+);
+
 class _RouterRefresh extends ChangeNotifier {
   void notify() => notifyListeners();
 }
@@ -94,6 +127,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/spaces/:id',
             builder: (_, state) =>
                 SpaceScreen(spaceId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/spaces/:id/tokens',
+            builder: (_, state) =>
+                TokensScreen(spaceId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/spaces/:id/members',
+            builder: (_, state) =>
+                MembersScreen(spaceId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/activate/:token',
+            builder: (_, state) =>
+                ActivateScreen(token: state.pathParameters['token']!),
           ),
           GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         ],

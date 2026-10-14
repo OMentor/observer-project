@@ -224,4 +224,88 @@ class ApiClient {
 
   Future<void> deleteEvent(String id) =>
       _guard(() => _dio.delete<void>('/events/$id'));
+
+  Future<List<EventHistoryEntry>> fetchEventHistory(String eventId) =>
+      _guard(() async {
+        final res =
+            await _dio.get<List<dynamic>>('/events/$eventId/history');
+        return res.data!
+            .map((e) => EventHistoryEntry.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<List<Member>> fetchMembers(String spaceId) => _guard(() async {
+        final res = await _dio.get<List<dynamic>>('/spaces/$spaceId/members');
+        return res.data!
+            .map((e) => Member.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<Member> updateMember(String memberId, String preset) =>
+      _guard(() async {
+        final res = await _dio.patch<Map<String, dynamic>>(
+          '/members/$memberId',
+          data: {'preset': preset},
+        );
+        return Member.fromJson(res.data!);
+      });
+
+  Future<void> removeMember(String memberId) =>
+      _guard(() => _dio.delete<void>('/members/$memberId'));
+
+  Future<List<Token>> fetchTokens(String spaceId) => _guard(() async {
+        final res = await _dio.get<List<dynamic>>('/spaces/$spaceId/tokens');
+        return res.data!
+            .map((e) => Token.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<Token> createToken(
+    String spaceId, {
+    required String preset,
+    String? expiresAt,
+  }) =>
+      _guard(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/spaces/$spaceId/tokens',
+          data: {'preset': preset, 'expires_at': expiresAt},
+        );
+        return Token.fromJson(res.data!);
+      });
+
+  Future<List<Token>> batchTokens({
+    required String spaceId,
+    required String preset,
+    required int count,
+    String? expiresAt,
+  }) =>
+      _guard(() async {
+        final res = await _dio.post<List<dynamic>>(
+          '/tokens/batch',
+          data: {
+            'space_id': spaceId,
+            'preset': preset,
+            'count': count,
+            'expires_at': expiresAt,
+          },
+        );
+        return res.data!
+            .map((e) => Token.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<TokenActivation> activateToken(
+    String token, {
+    String? name,
+  }) =>
+      _guard(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/tokens/$token/activate',
+          data: {'name': name},
+        );
+        return TokenActivation.fromJson(res.data!);
+      });
+
+  Future<void> revokeToken(String id) =>
+      _guard(() => _dio.delete<void>('/tokens/$id'));
 }

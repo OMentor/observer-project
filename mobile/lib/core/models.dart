@@ -108,6 +108,31 @@ class Space {
       );
 }
 
+class Preset {
+  static const String full = 'FULL';
+  static const String own = 'OWN';
+  static const String busy = 'BUSY';
+  static const String read = 'READ';
+
+  static const List<String> all = [full, own, busy, read];
+
+  static const Map<String, String> labels = {
+    full: 'Полный доступ',
+    own: 'Свои события',
+    busy: 'Только занятость',
+    read: 'Только чтение',
+  };
+
+  static const Map<String, String> hints = {
+    full: 'Создание и изменение любых событий и источников.',
+    own: 'Изменение только своих событий, остальные — скрыты.',
+    busy: 'Видно лишь «Занято», без деталей.',
+    read: 'Полный просмотр без права изменений.',
+  };
+
+  static String label(String? value) => labels[value] ?? value ?? '—';
+}
+
 class CalendarEvent {
   const CalendarEvent({
     required this.id,
@@ -123,6 +148,7 @@ class CalendarEvent {
     this.description,
     this.location,
     this.rrule,
+    this.busy = false,
   });
 
   final String id;
@@ -138,6 +164,7 @@ class CalendarEvent {
   final String? rrule;
   final String createdAt;
   final String updatedAt;
+  final bool busy;
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
         id: json['id'] as String,
@@ -153,7 +180,157 @@ class CalendarEvent {
         rrule: json['rrule'] as String?,
         createdAt: json['created_at'] as String,
         updatedAt: json['updated_at'] as String,
+        busy: json['busy'] as bool? ?? false,
       );
+}
+
+class Token {
+  const Token({
+    required this.id,
+    required this.spaceId,
+    required this.preset,
+    required this.createdBy,
+    required this.createdAt,
+    this.expiresAt,
+    this.usedAt,
+    this.usedBy,
+    this.revokedAt,
+    this.token,
+    this.creatorName,
+  });
+
+  final String id;
+  final String spaceId;
+  final String preset;
+  final String createdBy;
+  final String createdAt;
+  final String? expiresAt;
+  final String? usedAt;
+  final String? usedBy;
+  final String? revokedAt;
+  final String? token;
+  final String? creatorName;
+
+  bool get revoked => revokedAt != null;
+  bool get used => usedAt != null;
+  bool get expired =>
+      expiresAt != null && DateTime.parse(expiresAt!).isBefore(DateTime.now());
+
+  String get statusLabel {
+    if (revoked) return 'Отозван';
+    if (used) return 'Использован';
+    if (expired) return 'Истёк';
+    return 'Активен';
+  }
+
+  factory Token.fromJson(Map<String, dynamic> json) => Token(
+        id: json['id'] as String,
+        spaceId: json['space_id'] as String,
+        preset: json['preset'] as String,
+        createdBy: json['created_by'] as String,
+        createdAt: json['created_at'] as String,
+        expiresAt: json['expires_at'] as String?,
+        usedAt: json['used_at'] as String?,
+        usedBy: json['used_by'] as String?,
+        revokedAt: json['revoked_at'] as String?,
+        token: json['token'] as String?,
+        creatorName:
+            (json['creator'] as Map<String, dynamic>?)?['name'] as String?,
+      );
+}
+
+class Member {
+  const Member({
+    required this.id,
+    required this.spaceId,
+    required this.userId,
+    required this.preset,
+    required this.joinedAt,
+    required this.userName,
+    required this.userEmail,
+    this.revokedAt,
+  });
+
+  final String id;
+  final String spaceId;
+  final String userId;
+  final String preset;
+  final String joinedAt;
+  final String userName;
+  final String userEmail;
+  final String? revokedAt;
+
+  factory Member.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>? ?? const {};
+    return Member(
+      id: json['id'] as String,
+      spaceId: json['space_id'] as String,
+      userId: json['user_id'] as String,
+      preset: json['preset'] as String,
+      joinedAt: json['joined_at'] as String,
+      userName: user['name'] as String? ?? '',
+      userEmail: user['email'] as String? ?? '',
+      revokedAt: json['revoked_at'] as String?,
+    );
+  }
+}
+
+class TokenActivation {
+  const TokenActivation({
+    required this.success,
+    required this.spaceId,
+    required this.preset,
+  });
+
+  final bool success;
+  final String spaceId;
+  final String preset;
+
+  factory TokenActivation.fromJson(Map<String, dynamic> json) =>
+      TokenActivation(
+        success: json['success'] as bool? ?? true,
+        spaceId: json['space_id'] as String,
+        preset: json['preset'] as String,
+      );
+}
+
+class EventHistoryEntry {
+  const EventHistoryEntry({
+    required this.id,
+    required this.action,
+    required this.createdAt,
+    required this.userName,
+    this.oldTitle,
+    this.newTitle,
+  });
+
+  final String id;
+  final String action;
+  final String createdAt;
+  final String userName;
+  final String? oldTitle;
+  final String? newTitle;
+
+  String get actionLabel => switch (action) {
+        'CREATED' => 'Создано',
+        'UPDATED' => 'Изменено',
+        'DELETED' => 'Удалено',
+        _ => action,
+      };
+
+  factory EventHistoryEntry.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>? ?? const {};
+    final oldData = json['old_data'] as Map<String, dynamic>?;
+    final newData = json['new_data'] as Map<String, dynamic>?;
+    return EventHistoryEntry(
+      id: json['id'] as String,
+      action: json['action'] as String,
+      createdAt: json['created_at'] as String,
+      userName: user['name'] as String? ?? '',
+      oldTitle: oldData?['title']?.toString(),
+      newTitle: newData?['title']?.toString(),
+    );
+  }
 }
 
 class EventPayload {

@@ -13,17 +13,32 @@ class CalendarScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final eventsAsync = ref.watch(allEventsProvider);
     final spacesAsync = ref.watch(spacesProvider);
+    final me = ref.watch(authControllerProvider).asData?.value?.id;
 
-    final sources = spacesAsync.asData?.value.expand((s) => s.sources).toList() ??
-        const <Source>[];
+    final spaces = spacesAsync.asData?.value ?? const <Space>[];
+    final sources = spaces.expand((s) => s.sources).toList();
     final colorById = {
       for (final source in sources) source.id: hexColor(source.color),
     };
+    final spaceBySource = {
+      for (final space in spaces)
+        for (final source in space.sources) source.id: space.id,
+    };
+    final presetBySpace = <String, String?>{
+      for (final space in spaces)
+        space.id: ref.watch(spacePresetProvider(space.id)).asData?.value,
+    };
+    bool canCreateIn(Source source) {
+      final preset = presetBySpace[source.spaceId];
+      return preset == Preset.full || preset == Preset.own;
+    }
+
+    final canCreate = sources.any(canCreateIn);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Календарь')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _addEvent(context, ref, sources),
+        onPressed: () => _addEvent(context, ref, sources, canCreate),
         child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
@@ -67,8 +82,10 @@ class CalendarScreen extends ConsumerWidget {
                             width: 4,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: colorById[event.sourceId] ??
-                                  Theme.of(context).colorScheme.primary,
+                              color: event.busy
+                                  ? Colors.grey
+                                  : colorById[event.sourceId] ??
+                                      Theme.of(context).colorScheme.primary,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -77,6 +94,17 @@ class CalendarScreen extends ConsumerWidget {
                           trailing: event.location == null
                               ? null
                               : const Icon(Icons.place_outlined, size: 18),
+                          onTap: event.busy
+                              ? null
+                              : () => _openEvent(
+                                    context,
+                                    ref,
+                                    event,
+                                    sources,
+                                    presetBySpace[
+                                        spaceBySource[event.sourceId]],
+                                    me,
+                                  ),
                         ),
                       ),
                   ],
@@ -93,6 +121,7 @@ class CalendarScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<Source> sources,
+    bool canCreate,
   ) async {
     if (sources.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +131,39 @@ class CalendarScreen extends ConsumerWidget {
       );
       return;
     }
+    if (!canCreate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нет источников с правом создания событий'),
+        ),
+      );
+      return;
+    }
     await showEventForm(context, sources: sources);
+  }
+
+  Future<void> _openEvent(
+    BuildContext context,
+    WidgetRef ref,
+    CalendarEvent event,
+    List<Source> sources,
+    String? preset,
+    String? me,
+  ) async {
+    final canEdit = preset == Preset.full ||
+        (preset == Preset.own && event.creatorId == me);
+    if (!canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет прав на изменение события')),
+      );
+      return;
+    }
+    final source = sources.where((s) => s.id == event.sourceId);
+    await showEventForm(
+      context,
+      sources: source.toList(),
+      event: event,
+    );
   }
 }
 

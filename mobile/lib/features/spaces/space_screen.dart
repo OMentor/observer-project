@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
@@ -15,19 +16,34 @@ class SpaceScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final spaceAsync = ref.watch(spaceProvider(spaceId));
     final sources = spaceAsync.asData?.value.sources ?? const <Source>[];
+    final preset = ref.watch(spacePresetProvider(spaceId)).asData?.value;
+    final isFull = preset == Preset.full;
+    final canCreateEvents = preset == Preset.full || preset == Preset.own;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(spaceAsync.asData?.value.name ?? 'Пространство'),
         actions: [
           IconButton(
-            tooltip: 'Добавить источник',
-            icon: const Icon(Icons.create_new_folder_outlined),
-            onPressed: () => _addSource(context, ref),
+            tooltip: 'Участники',
+            icon: const Icon(Icons.group_outlined),
+            onPressed: () => context.go('/spaces/$spaceId/members'),
           ),
+          if (isFull)
+            IconButton(
+              tooltip: 'Токены',
+              icon: const Icon(Icons.key_outlined),
+              onPressed: () => context.go('/spaces/$spaceId/tokens'),
+            ),
+          if (isFull)
+            IconButton(
+              tooltip: 'Добавить источник',
+              icon: const Icon(Icons.create_new_folder_outlined),
+              onPressed: () => _addSource(context, ref),
+            ),
         ],
       ),
-      floatingActionButton: sources.isNotEmpty
+      floatingActionButton: sources.isNotEmpty && canCreateEvents
           ? FloatingActionButton.extended(
               onPressed: () => _addEvent(context, ref, sources),
               icon: const Icon(Icons.add),
@@ -39,12 +55,14 @@ class SpaceScreen extends ConsumerWidget {
         error: (error, _) => Center(child: Text('Ошибка: $error')),
         data: (space) {
           if (space.sources.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'В пространстве ещё нет источников. '
-                  'Добавьте источник кнопкой вверху.',
+                  isFull
+                      ? 'В пространстве ещё нет источников. '
+                          'Добавьте источник кнопкой вверху.'
+                      : 'В пространстве ещё нет источников.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -53,8 +71,13 @@ class SpaceScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (preset != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Chip(label: Text(Preset.label(preset))),
+                ),
               for (final source in space.sources)
-                _SourceSection(source: source),
+                _SourceSection(source: source, preset: preset),
             ],
           );
         },
@@ -113,14 +136,16 @@ class SpaceScreen extends ConsumerWidget {
 }
 
 class _SourceSection extends ConsumerWidget {
-  const _SourceSection({required this.source});
+  const _SourceSection({required this.source, required this.preset});
 
   final Source source;
+  final String? preset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final color = hexColor(source.color);
     final eventsAsync = ref.watch(eventsProvider(source.id));
+    final me = ref.watch(authControllerProvider).asData?.value?.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -152,9 +177,24 @@ class _SourceSection extends ConsumerWidget {
                   for (final event in events)
                     ListTile(
                       dense: true,
+                      enabled: !event.busy,
                       title: Text(event.title),
                       subtitle: Text(_range(event)),
                       onTap: () async {
+                        if (event.busy) {
+                          return;
+                        }
+                        final canEdit = preset == Preset.full ||
+                            (preset == Preset.own &&
+                                event.creatorId == me);
+                        if (!canEdit) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Нет прав на изменение события'),
+                            ),
+                          );
+                          return;
+                        }
                         final saved = await showEventForm(
                           context,
                           sources: [source],

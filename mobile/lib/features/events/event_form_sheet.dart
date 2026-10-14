@@ -167,6 +167,10 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
               maxLines: 3,
               decoration: const InputDecoration(labelText: 'Описание'),
             ),
+            if (_isEditing) ...[
+              const SizedBox(height: 16),
+              _HistorySection(eventId: widget.event!.id),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -282,4 +286,50 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
 
   String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+}
+
+class _HistorySection extends ConsumerWidget {
+  const _HistorySection({required this.eventId});
+
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(eventHistoryProvider(eventId));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('История', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        historyAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          ),
+          error: (error, _) => Text('История недоступна: $error'),
+          data: (entries) {
+            if (entries.isEmpty) {
+              return const Text('История пуста');
+            }
+            return Column(
+              children: [
+                for (final entry in entries)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      '${entry.actionLabel} · ${entry.userName}',
+                    ),
+                    subtitle: Text(
+                      '${entry.createdAt}'
+                      '${entry.oldTitle != null && entry.newTitle != null && entry.oldTitle != entry.newTitle ? ' · ${entry.oldTitle} → ${entry.newTitle}' : ''}',
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
