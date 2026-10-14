@@ -78,4 +78,31 @@ describe('SpacesService', () => {
       data: { deleted_at: expect.any(Date) },
     });
   });
+
+  it('getAccess возвращает FULL владельцу без обращения к участникам', async () => {
+    prisma.space.findFirst.mockResolvedValue({ owner_id: 'u1' });
+
+    const access = await service.getAccess('u1', 's1');
+
+    expect(access).toEqual({ isOwner: true, preset: 'FULL' });
+    expect(prisma.spaceMember.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('getAccess возвращает пресет участника', async () => {
+    prisma.space.findFirst.mockResolvedValue({ owner_id: 'owner' });
+    prisma.spaceMember.findFirst.mockResolvedValue({ preset: 'BUSY' });
+
+    const access = await service.getAccess('u1', 's1');
+
+    expect(access).toEqual({ isOwner: false, preset: 'BUSY' });
+  });
+
+  it('getAccess бросает ForbiddenException для чужака', async () => {
+    prisma.space.findFirst.mockResolvedValue({ owner_id: 'owner' });
+    prisma.spaceMember.findFirst.mockResolvedValue(null);
+
+    await expect(service.getAccess('u1', 's1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
 });

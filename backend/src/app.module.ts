@@ -7,9 +7,12 @@ import { AuthModule } from './auth/auth.module';
 import { SpacesModule } from './spaces/spaces.module';
 import { SourcesModule } from './sources/sources.module';
 import { EventsModule } from './events/events.module';
+import { TokensModule } from './tokens/tokens.module';
+import { MembersModule } from './members/members.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { PresetGuard } from './common/preset.guard';
 
 @Module({
   imports: [
@@ -23,11 +26,14 @@ import { RolesGuard } from './auth/roles.guard';
     SpacesModule,
     SourcesModule,
     EventsModule,
+    TokensModule,
+    MembersModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PresetGuard },
   ],
 })
 export class AppModule {}

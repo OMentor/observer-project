@@ -17,6 +17,7 @@ import {
   updateSourceSchema,
 } from './sources.dto';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { RequirePreset } from '../common/require-preset.decorator';
 import { AuthUser, CurrentUser } from '../common/current-user.decorator';
 
 @ApiTags('Sources')
@@ -26,6 +27,7 @@ export class SourcesController {
   constructor(private readonly sources: SourcesService) {}
 
   @Post('spaces/:spaceId/sources')
+  @RequirePreset(['FULL'], 'space')
   create(
     @CurrentUser() user: AuthUser,
     @Param('spaceId') spaceId: string,
@@ -45,6 +47,7 @@ export class SourcesController {
   }
 
   @Patch('sources/:id')
+  @RequirePreset(['FULL'], 'source')
   update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -55,6 +58,7 @@ export class SourcesController {
 
   @HttpCode(200)
   @Delete('sources/:id')
+  @RequirePreset(['FULL'], 'source')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.sources.remove(user.id, id);
   }

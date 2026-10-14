@@ -20,6 +20,7 @@ import {
   updateEventSchema,
 } from './events.dto';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { RequirePreset } from '../common/require-preset.decorator';
 import { AuthUser, CurrentUser } from '../common/current-user.decorator';
 
 @ApiTags('Events')
@@ -29,6 +30,7 @@ export class EventsController {
   constructor(private readonly events: EventsService) {}
 
   @Post('sources/:sourceId/events')
+  @RequirePreset(['FULL', 'OWN'], 'source')
   create(
     @CurrentUser() user: AuthUser,
     @Param('sourceId') sourceId: string,
@@ -57,6 +59,7 @@ export class EventsController {
   }
 
   @Patch('events/:id')
+  @RequirePreset(['FULL', 'OWN'], 'event')
   update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -67,6 +70,7 @@ export class EventsController {
 
   @HttpCode(200)
   @Delete('events/:id')
+  @RequirePreset(['FULL', 'OWN'], 'event')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.events.remove(user.id, id);
   }

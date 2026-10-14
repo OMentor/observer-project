@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Event } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { SpacesService } from '../spaces/spaces.service';
+import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
 import {
   CreateEventDto,
   ListEventsDto,
@@ -29,7 +33,8 @@ export class EventsService {
   ) {}
 
   async create(userId: string, sourceId: string, dto: CreateEventDto) {
-    await this.resolveSource(userId, sourceId);
+    const { access } = await this.resolveSource(userId, sourceId);
+    this.assertCanWrite(access, userId, null);
     const event = await this.prisma.event.create({
       data: {
         source_id: sourceId,
@@ -49,8 +54,8 @@ export class EventsService {
   }
 
   async findAll(userId: string, sourceId: string, query: ListEventsDto) {
-    await this.resolveSource(userId, sourceId);
-    return this.prisma.event.findMany({
+    const { access } = await this.resolveSource(userId, sourceId);
+    const events = await this.prisma.event.findMany({
       where: {
         source_id: sourceId,
         deleted_at: null,
@@ -65,14 +70,20 @@ export class EventsService {
       },
       orderBy: { start_at: 'asc' },
     });
+    return events.map((event) => this.mask(event, access, userId));
   }
 
   async findOne(userId: string, eventId: string) {
-    return this.load(userId, eventId);
+    const { event, access } = await this.loadWithAccess(userId, eventId);
+    return this.mask(event, access, userId);
   }
 
   async update(userId: string, eventId: string, dto: UpdateEventDto) {
-    const current = await this.load(userId, eventId);
+    const { event: current, access } = await this.loadWithAccess(
+      userId,
+      eventId,
+    );
+    this.assertCanWrite(access, userId, current);
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
@@ -97,7 +108,11 @@ export class EventsService {
   }
 
   async remove(userId: string, eventId: string) {
-    const current = await this.load(userId, eventId);
+    const { event: current, access } = await this.loadWithAccess(
+      userId,
+      eventId,
+    );
+    this.assertCanWrite(access, userId, current);
     await this.prisma.event.update({
       where: { id: eventId },
       data: { deleted_at: new Date() },
@@ -107,7 +122,10 @@ export class EventsService {
   }
 
   async history(userId: string, eventId: string) {
-    await this.load(userId, eventId);
+    const { event, access } = await this.loadWithAccess(userId, eventId);
+    if (this.isMasked(event, access, userId)) {
+      throw new ForbiddenException('История события недоступна');
+    }
     return this.prisma.eventHistory.findMany({
       where: { event_id: eventId },
       orderBy: { created_at: 'desc' },
@@ -115,15 +133,59 @@ export class EventsService {
     });
   }
 
-  private async load(userId: string, eventId: string) {
+  private isMasked(event: Event, access: SpaceAccess, userId: string) {
+    return (
+      access.preset === 'BUSY' ||
+      (access.preset === 'OWN' && event.creator_id !== userId)
+    );
+  }
+
+  private mask(event: Event, access: SpaceAccess, userId: string) {
+    if (!this.isMasked(event, access, userId)) {
+      return { ...event, busy: false };
+    }
+    return {
+      ...event,
+      title: 'Занято',
+      description: null,
+      location: null,
+      busy: true,
+    };
+  }
+
+  private assertCanWrite(
+    access: SpaceAccess,
+    userId: string,
+    event: Event | null,
+  ) {
+    if (access.preset === 'FULL') {
+      return;
+    }
+    if (access.preset === 'OWN') {
+      if (event && event.creator_id !== userId) {
+        throw new ForbiddenException('Можно изменять только свои события');
+      }
+      return;
+    }
+    throw new ForbiddenException('Недостаточно прав для изменения событий');
+  }
+
+  private async loadWithAccess(userId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, deleted_at: null },
     });
     if (!event) {
       throw new NotFoundException('Событие не найдено');
     }
-    await this.spaces.ensureMember(userId, await this.spaceOfSource(event.source_id));
-    return event;
+    const source = await this.prisma.source.findFirst({
+      where: { id: event.source_id },
+      select: { space_id: true },
+    });
+    if (!source) {
+      throw new NotFoundException('Источник не найден');
+    }
+    const access = await this.spaces.getAccess(userId, source.space_id);
+    return { event, access };
   }
 
   private async resolveSource(userId: string, sourceId: string) {
@@ -134,19 +196,8 @@ export class EventsService {
     if (!source) {
       throw new NotFoundException('Источник не найден');
     }
-    await this.spaces.ensureMember(userId, source.space_id);
-    return source;
-  }
-
-  private async spaceOfSource(sourceId: string): Promise<string> {
-    const source = await this.prisma.source.findFirst({
-      where: { id: sourceId },
-      select: { space_id: true },
-    });
-    if (!source) {
-      throw new NotFoundException('Источник не найден');
-    }
-    return source.space_id;
+    const access = await this.spaces.getAccess(userId, source.space_id);
+    return { source, access };
   }
 
   private async writeHistory(

@@ -250,7 +250,12 @@ paths:
       tags: [Sources]
       summary: Мягко удалить источник
       responses:
-        '204': { description: Без содержимого }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
       x-audience: [web]
 
   /sources/{id}/events:
@@ -323,7 +328,12 @@ paths:
       tags: [Events]
       summary: Удалить событие
       responses:
-        '204': { description: Без содержимого }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
       x-audience: [web, mobile]
 
   /spaces/{id}/tokens:
@@ -332,6 +342,7 @@ paths:
     get:
       tags: [Tokens]
       summary: Токены пространства
+      description: Доступно владельцу и участникам с пресетом FULL.
       responses:
         '200':
           description: OK
@@ -345,6 +356,7 @@ paths:
     post:
       tags: [Tokens]
       summary: Сгенерировать токен с пресетом
+      description: Доступно владельцу и участникам с пресетом FULL.
       requestBody:
         required: true
         content:
@@ -367,6 +379,7 @@ paths:
     post:
       tags: [Tokens]
       summary: Пакетная генерация токенов
+      description: Доступно владельцу и участникам с пресетом FULL.
       requestBody:
         required: true
         content:
@@ -392,8 +405,10 @@ paths:
   /tokens/{token}/activate:
     post:
       tags: [Tokens]
-      summary: Активация токена (создаёт участника)
-      security: []
+      summary: Активация токена (создаёт/обновляет участника)
+      description: >-
+        Требует авторизации. Токен одноразовый: при успешной активации
+        помечается использованным. Повторная активация возвращает 409.
       parameters:
         - $ref: '#/components/parameters/TokenValue'
       requestBody:
@@ -404,24 +419,31 @@ paths:
               type: object
               properties:
                 name: { type: string }
-              required: [name]
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '410': { description: Токен использован или истёк }
+                $ref: '#/components/schemas/TokenActivation'
+        '400': { description: Токен отозван или истёк }
+        '404': { description: Токен не найден }
+        '409': { description: Токен уже использован }
       x-audience: [web, mobile]
   /tokens/{id}:
     delete:
       tags: [Tokens]
       summary: Отозвать токен
+      description: Доступно владельцу и участникам с пресетом FULL.
       parameters:
         - $ref: '#/components/parameters/Id'
       responses:
-        '204': { description: Без содержимого }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
       x-audience: [web]
 
   /spaces/{id}/members:
@@ -430,6 +452,7 @@ paths:
     get:
       tags: [Members]
       summary: Участники пространства
+      description: Доступно любому активному участнику пространства.
       responses:
         '200':
           description: OK
@@ -446,6 +469,7 @@ paths:
     patch:
       tags: [Members]
       summary: Изменить пресет участника
+      description: Только FULL; пресет владельца изменить нельзя.
       requestBody:
         required: true
         content:
@@ -466,8 +490,14 @@ paths:
     delete:
       tags: [Members]
       summary: Кик участника
+      description: Только FULL; владельца кикнуть нельзя. Мягкий кик (сохраняет историю).
       responses:
-        '204': { description: Без содержимого }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
       x-audience: [web]
 
   /events/{id}/history:
@@ -883,6 +913,11 @@ components:
         last_synced_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        busy:
+          type: boolean
+          description: >-
+            true, если событие замаскировано для текущего пользователя
+            (пресеты OWN для чужих событий и BUSY): скрыты title/description/location.
     EventInput:
       type: object
       properties:
@@ -908,13 +943,39 @@ components:
       properties:
         id: { type: string, format: uuid }
         space_id: { type: string, format: uuid }
-        token: { type: string, description: Возвращается только при создании }
+        token: { type: string, description: Открытый токен — только при создании }
         preset: { $ref: '#/components/schemas/Preset' }
+        created_by: { type: string, format: uuid }
         expires_at: { type: string, format: date-time, nullable: true }
         used_at: { type: string, format: date-time, nullable: true }
         used_by: { type: string, format: uuid, nullable: true }
         revoked_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
+        creator:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: Только в списке токенов
+        used_by_user:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          nullable: true
+          description: Только в списке токенов
+    TokenActivation:
+      type: object
+      properties:
+        success: { type: boolean }
+        space_id: { type: string, format: uuid }
+        preset: { $ref: '#/components/schemas/Preset' }
+    SuccessResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+    UserRef:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
     Member:
       type: object
       properties:
@@ -924,6 +985,10 @@ components:
         preset: { $ref: '#/components/schemas/Preset' }
         joined_at: { type: string, format: date-time }
         revoked_at: { type: string, format: date-time, nullable: true }
+        user:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: Только в списке участников
     EventHistory:
       type: object
       properties:
