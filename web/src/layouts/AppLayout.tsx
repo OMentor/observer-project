@@ -1,17 +1,22 @@
 import type { ReactNode } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   History,
   KeyRound,
+  LayoutGrid,
+  LogOut,
   Settings,
   Users,
   UserRound,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useAuthStore } from '@/store/auth';
+import { logoutRequest } from '@/lib/services';
 
 const navItems = [
-  { to: '/', label: 'Календарь', icon: CalendarDays, end: true },
+  { to: '/', label: 'Пространства', icon: LayoutGrid, end: true },
+  { to: '/calendar', label: 'Календарь', icon: CalendarDays },
   { to: '/tokens', label: 'Токены', icon: KeyRound },
   { to: '/members', label: 'Участники', icon: Users },
   { to: '/history', label: 'История', icon: History },
@@ -50,6 +55,19 @@ function NavItem({
 }
 
 export function AppLayout({ children }: { children?: ReactNode }) {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
+  const clear = useAuthStore((s) => s.clear);
+
+  const onLogout = async () => {
+    if (refreshToken) {
+      await logoutRequest(refreshToken).catch(() => undefined);
+    }
+    clear();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-6">
@@ -61,7 +79,17 @@ export function AppLayout({ children }: { children?: ReactNode }) {
             UI-бета
           </span>
         </div>
-        <div className="text-sm text-muted">Локальный режим</div>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-muted">{user?.name ?? user?.email}</span>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center gap-1 text-muted transition-colors hover:text-conflict"
+          >
+            <LogOut className="size-4" />
+            Выйти
+          </button>
+        </div>
       </header>
       <div className="flex min-h-0 flex-1">
         <aside className="w-60 shrink-0 border-r border-border bg-surface/50 p-3">

@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-export type AuthUser = {
-  email: string;
-  name?: string;
-};
+import type { AuthUser } from '@/lib/types';
 
 type AuthState = {
   accessToken: string | null;
+  refreshToken: string | null;
   user: AuthUser | null;
-  setSession: (session: { accessToken: string; user: AuthUser }) => void;
+  setSession: (session: {
+    accessToken: string;
+    refreshToken: string;
+    user: AuthUser;
+  }) => void;
+  setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   clear: () => void;
 };
 
@@ -17,9 +19,13 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
+      refreshToken: null,
       user: null,
-      setSession: ({ accessToken, user }) => set({ accessToken, user }),
-      clear: () => set({ accessToken: null, user: null }),
+      setSession: ({ accessToken, refreshToken, user }) =>
+        set({ accessToken, refreshToken, user }),
+      setTokens: ({ accessToken, refreshToken }) =>
+        set({ accessToken, refreshToken }),
+      clear: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     { name: 'pletenie.auth' },
   ),

@@ -1,28 +1,44 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { loginRequest } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
-  password: z.string().min(6, 'Минимум 6 символов'),
+  password: z.string().min(8, 'Минимум 8 символов'),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
+  const [serverError, setServerError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = (values: FormValues) => {
-    setSession({ accessToken: 'stub', user: { email: values.email } });
-    navigate('/');
+  const onSubmit = async (values: FormValues) => {
+    setServerError(null);
+    try {
+      const session = await loginRequest(values.email, values.password);
+      setSession(session);
+      const from =
+        (location.state as { from?: string } | null)?.from ?? '/';
+      navigate(from, { replace: true });
+    } catch {
+      setServerError('Неверный email или пароль');
+    }
   };
 
   return (
@@ -36,39 +52,36 @@ export function LoginPage() {
           <p className="text-sm text-muted">Вход в календарь-планировщик</p>
         </div>
 
-        <label className="block space-y-1">
-          <span className="text-sm text-muted">Email</span>
-          <input
-            type="email"
-            {...register('email')}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
-          />
+        <div className="space-y-1">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" placeholder="user@example.com" {...register('email')} />
           {errors.email && (
             <span className="text-xs text-conflict">{errors.email.message}</span>
           )}
-        </label>
+        </div>
 
-        <label className="block space-y-1">
-          <span className="text-sm text-muted">Пароль</span>
-          <input
-            type="password"
-            {...register('password')}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
-          />
+        <div className="space-y-1">
+          <Label htmlFor="password">Пароль</Label>
+          <Input id="password" type="password" {...register('password')} />
           {errors.password && (
             <span className="text-xs text-conflict">
               {errors.password.message}
             </span>
           )}
-        </label>
+        </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          Войти
-        </button>
+        {serverError && <p className="text-xs text-conflict">{serverError}</p>}
+
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? 'Вход…' : 'Войти'}
+        </Button>
+
+        <p className="text-center text-sm text-muted">
+          Нет аккаунта?{' '}
+          <Link to="/register" className="text-accent hover:underline">
+            Зарегистрироваться
+          </Link>
+        </p>
       </form>
     </div>
   );
