@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Preset {
+  FULL
+  OWN
+  BUSY
+  READ
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SourceVisibility {
+  SHARED
+  PRIVATE
+}
+
+enum SyncProvider {
+  CALDAV
+  GOOGLE
+  MICROSOFT
+}
+
+enum SyncDirection {
+  BOTH
+  IMPORT
+  EXPORT
+}
+
+enum SyncStatus {
+  IDLE
+  SYNCING
+  ERROR
+  CONFLICT
+}
+
+enum HistoryAction {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  email         String   @unique
+  phone         String?  @unique
+  password_hash String
+  role          UserRole @default(USER)
+  timezone      String   @default("UTC")
+  created_at    DateTime @default(now())
+
+  owned_spaces      Space[]             @relation("SpaceOwner")
+  owned_sources     Source[]            @relation("SourceOwner")
+  created_events    Event[]             @relation("EventCreator")
+  memberships       SpaceMember[]
+  tokens_created    Token[]             @relation("TokenCreatedBy")
+  tokens_used       Token[]             @relation("TokenUsedBy")
+  histories         EventHistory[]
+  connections       ExternalConnection[]
+
+  @@map("users")
+}
+
+model Space {
+  id         String    @id @default(uuid()) @db.Uuid
+  owner_id   String    @db.Uuid
+  name       String
+  created_at DateTime  @default(now())
+  deleted_at DateTime?
+
+  owner   User          @relation("SpaceOwner", fields: [owner_id], references: [id])
+  sources Source[]
+  tokens  Token[]
+  members SpaceMember[]
+
+  @@map("spaces")
+}
+
+model Source {
+  id         String           @id @default(uuid()) @db.Uuid
+  space_id   String           @db.Uuid
+  owner_id   String?          @db.Uuid
+  name       String
+  color      String
+  visibility SourceVisibility @default(SHARED)
+  created_at DateTime         @default(now())
+  deleted_at DateTime?
+
+  space          Space              @relation(fields: [space_id], references: [id])
+  owner          User?              @relation("SourceOwner", fields: [owner_id], references: [id])
+  events         Event[]
+  external_maps  SourceExternalMap[]
+  incoming_share EventShare[]       @relation("ShareTarget")
+
+  @@index([space_id])
+  @@map("sources")
+}
+
+model Event {
+  id                    String        @id @default(uuid()) @db.Uuid
+  source_id             String        @db.Uuid
+  creator_id            String        @db.Uuid
+  title                 String
+  description           String?
+  start_at              DateTime
+  end_at                DateTime
+  all_day               Boolean       @default(false)
+  timezone              String        @default("UTC")
+  location              String?
+  rrule                 String?
+  recurrence_parent_id  String?       @db.Uuid
+  recurrence_exceptions Json?
+  created_at            DateTime      @default(now())
+  updated_at            DateTime      @updatedAt
+  deleted_at            DateTime?
+  external_id           String?
+  external_provider     SyncProvider?
+  sync_status           SyncStatus    @default(IDLE)
+  last_synced_at        DateTime?
+
+  source              Source         @relation(fields: [source_id], references: [id])
+  creator             User           @relation("EventCreator", fields: [creator_id], references: [id])
+  recurrence_parent   Event?         @relation("EventRecurrence", fields: [recurrence_parent_id], references: [id])
+  recurrence_children Event[]        @relation("EventRecurrence")
+  history             EventHistory[]
+  shares              EventShare[]
+  conflicts           SyncConflict[]
+
+  @@index([source_id, start_at])
+  @@index([creator_id])
+  @@map("events")
+}
+
+model Token {
+  id         String    @id @default(uuid()) @db.Uuid
+  space_id   String    @db.Uuid
+  token_hash String    @unique
+  preset     Preset
+  created_by String    @db.Uuid
+  expires_at DateTime?
+  used_at    DateTime?
+  used_by    String?   @db.Uuid
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  space    Space @relation(fields: [space_id], references: [id])
+  creator  User  @relation("TokenCreatedBy", fields: [created_by], references: [id])
+  used_by_user User? @relation("TokenUsedBy", fields: [used_by], references: [id])
+
+  @@index([space_id])
+  @@map("tokens")
+}
+
+model SpaceMember {
+  id         String    @id @default(uuid()) @db.Uuid
+  space_id   String    @db.Uuid
+  user_id    String    @db.Uuid
+  preset     Preset
+  joined_at  DateTime  @default(now())
+  revoked_at DateTime?
+
+  space Space @relation(fields: [space_id], references: [id])
+  user  User  @relation(fields: [user_id], references: [id])
+
+  @@unique([space_id, user_id])
+  @@map("space_members")
+}
+
+model EventHistory {
+  id         String        @id @default(uuid()) @db.Uuid
+  event_id   String        @db.Uuid
+  user_id    String        @db.Uuid
+  action     HistoryAction
+  old_data   Json?
+  new_data   Json?
+  created_at DateTime      @default(now())
+
+  event Event @relation(fields: [event_id], references: [id])
+  user  User  @relation(fields: [user_id], references: [id])
+
+  @@index([event_id])
+  @@map("event_history")
+}
+
+model ExternalConnection {
+  id               String       @id @default(uuid()) @db.Uuid
+  user_id          String       @db.Uuid
+  provider         SyncProvider
+  access_token     String?
+  refresh_token    String?
+  token_expires_at DateTime?
+  caldav_url       String?
+  caldav_username  String?
+  caldav_password  String?
+  sync_token       String?
+  last_sync_at     DateTime?
+  sync_status      SyncStatus   @default(IDLE)
+  created_at       DateTime     @default(now())
+
+  user        User                @relation(fields: [user_id], references: [id])
+  source_maps SourceExternalMap[]
+
+  @@index([user_id])
+  @@map("external_connections")
+}
+
+model SourceExternalMap {
+  id                     String        @id @default(uuid()) @db.Uuid
+  source_id              String        @db.Uuid
+  external_connection_id String        @db.Uuid
+  external_calendar_id   String
+  sync_direction         SyncDirection @default(BOTH)
+  created_at             DateTime      @default(now())
+
+  source              Source             @relation(fields: [source_id], references: [id])
+  external_connection ExternalConnection @relation(fields: [external_connection_id], references: [id])
+
+  @@unique([source_id, external_connection_id])
+  @@map("source_external_map")
+}
+
+model SyncConflict {
+  id                     String    @id @default(uuid()) @db.Uuid
+  event_id               String    @db.Uuid
+  external_connection_id String    @db.Uuid
+  local_data             Json
+  external_data          Json
+  created_at             DateTime  @default(now())
+  resolved_at            DateTime?
+  resolution             String?
+
+  event Event @relation(fields: [event_id], references: [id])
+
+  @@index([event_id])
+  @@map("sync_conflicts")
+}
+
+model EventShare {
+  id               String   @id @default(uuid()) @db.Uuid
+  event_id         String   @db.Uuid
+  target_source_id String   @db.Uuid
+  created_at       DateTime @default(now())
+
+  event         Event  @relation(fields: [event_id], references: [id])
+  target_source Source @relation("ShareTarget", fields: [target_source_id], references: [id])
+
+  @@map("event_shares")
+}

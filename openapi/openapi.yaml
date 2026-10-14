@@ -1,0 +1,970 @@
+openapi: 3.0.3
+info:
+  title: Плетение API
+  description: >-
+    Календарь-планировщик: пространства, источники, события, токены доступа,
+    участники, синхронизация с внешними календарями, ИИ.
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000
+    description: Локальная разработка
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Spaces
+  - name: Sources
+  - name: Events
+  - name: Tokens
+  - name: Members
+  - name: Sync
+  - name: AI
+  - name: Notifications
+  - name: Admin
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация по email или телефону
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Пользователь уже существует
+      x-audience: [web, mobile]
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверные учётные данные
+      x-audience: [web, mobile]
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access-токена
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+              required: [refresh_token]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Refresh недействителен
+      x-audience: [web, mobile]
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход (инвалидация refresh)
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web, mobile]
+
+  /spaces:
+    get:
+      tags: [Spaces]
+      summary: Список пространств пользователя
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+      x-audience: [web, mobile]
+    post:
+      tags: [Spaces]
+      summary: Создать пространство
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, example: Личное }
+              required: [name]
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+      x-audience: [web, mobile]
+  /spaces/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Spaces]
+      summary: Получить пространство
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+        '403': { description: Нет доступа }
+        '404': { description: Не найдено }
+      x-audience: [web, mobile]
+    patch:
+      tags: [Spaces]
+      summary: Изменить пространство
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+      x-audience: [web]
+    delete:
+      tags: [Spaces]
+      summary: Мягко удалить пространство
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+
+  /spaces/{id}/sources:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Sources]
+      summary: Источники пространства
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Source'
+      x-audience: [web, mobile]
+    post:
+      tags: [Sources]
+      summary: Создать источник
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceInput'
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+      x-audience: [web, mobile]
+  /sources/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Sources]
+      summary: Изменить источник
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+      x-audience: [web]
+    delete:
+      tags: [Sources]
+      summary: Мягко удалить источник
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+
+  /sources/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+    get:
+      tags: [Events]
+      summary: События источника
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+      x-audience: [web, mobile]
+    post:
+      tags: [Events]
+      summary: Создать событие
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+      x-audience: [web, mobile]
+  /events/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Events]
+      summary: Получить событие
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+      x-audience: [web, mobile]
+    patch:
+      tags: [Events]
+      summary: Изменить событие
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+      x-audience: [web, mobile]
+    delete:
+      tags: [Events]
+      summary: Удалить событие
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web, mobile]
+
+  /spaces/{id}/tokens:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Tokens]
+      summary: Токены пространства
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+      x-audience: [web, mobile]
+    post:
+      tags: [Tokens]
+      summary: Сгенерировать токен с пресетом
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preset: { $ref: '#/components/schemas/Preset' }
+                expires_at: { type: string, format: date-time, nullable: true }
+              required: [preset]
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+      x-audience: [web, mobile]
+  /tokens/batch:
+    post:
+      tags: [Tokens]
+      summary: Пакетная генерация токенов
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id: { type: string, format: uuid }
+                preset: { $ref: '#/components/schemas/Preset' }
+                count: { type: integer, minimum: 1, maximum: 100 }
+                expires_at: { type: string, format: date-time, nullable: true }
+              required: [space_id, preset, count]
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+      x-audience: [web]
+  /tokens/{token}/activate:
+    post:
+      tags: [Tokens]
+      summary: Активация токена (создаёт участника)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TokenValue'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+              required: [name]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '410': { description: Токен использован или истёк }
+      x-audience: [web, mobile]
+  /tokens/{id}:
+    delete:
+      tags: [Tokens]
+      summary: Отозвать токен
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+
+  /spaces/{id}/members:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Members]
+      summary: Участники пространства
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
+      x-audience: [web, mobile]
+  /members/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Members]
+      summary: Изменить пресет участника
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preset: { $ref: '#/components/schemas/Preset' }
+              required: [preset]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+      x-audience: [web]
+    delete:
+      tags: [Members]
+      summary: Кик участника
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+
+  /events/{id}/history:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Events]
+      summary: История изменений события
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventHistory'
+      x-audience: [web]
+
+  /sync/connections:
+    get:
+      tags: [Sync]
+      summary: Подключения к внешним календарям
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExternalConnection'
+      x-audience: [web, mobile]
+    post:
+      tags: [Sync]
+      summary: Подключить внешний календарь
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalConnectionInput'
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalConnection'
+      x-audience: [web, mobile]
+  /sync/connections/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    delete:
+      tags: [Sync]
+      summary: Отключить внешний календарь
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web, mobile]
+  /sync/connections/{id}/force:
+    post:
+      tags: [Sync]
+      summary: Принудительная синхронизация
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '202': { description: Поставлено в очередь }
+      x-audience: [web, mobile]
+  /sources/{id}/link:
+    post:
+      tags: [Sync]
+      summary: Связать источник с внешним календарём
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                external_connection_id: { type: string, format: uuid }
+                external_calendar_id: { type: string }
+                sync_direction: { $ref: '#/components/schemas/SyncDirection' }
+              required: [external_connection_id, external_calendar_id]
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceExternalMap'
+      x-audience: [web]
+    delete:
+      tags: [Sync]
+      summary: Разорвать связь источника
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+  /sync/conflicts:
+    get:
+      tags: [Sync]
+      summary: Список конфликтов
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SyncConflict'
+      x-audience: [web, mobile]
+  /sync/conflicts/{id}/resolve:
+    post:
+      tags: [Sync]
+      summary: Разрешить конфликт
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution:
+                  type: string
+                  enum: [LOCAL, EXTERNAL, MERGE]
+              required: [resolution]
+      responses:
+        '200': { description: OK }
+      x-audience: [web, mobile]
+
+  /events/{id}/share:
+    post:
+      tags: [Events]
+      summary: Расшарить событие в другой источник (B2B)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_source_id: { type: string, format: uuid }
+              required: [target_source_id]
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventShare'
+      x-audience: [web]
+  /shares/{id}:
+    delete:
+      tags: [Events]
+      summary: Удалить расшаривание
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: Без содержимого }
+      x-audience: [web]
+
+  /ai/parse:
+    post:
+      tags: [AI]
+      summary: Парсинг естественного языка в событие
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string, example: 'Встреча завтра в 15:00' }
+                source_id: { type: string, format: uuid }
+              required: [text]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedEvent'
+      x-audience: [web, mobile]
+  /ai/filters:
+    get:
+      tags: [AI]
+      summary: Умные (семантические) фильтры
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+      x-audience: [web, mobile]
+  /ai/conflict-suggest:
+    post:
+      tags: [AI]
+      summary: Предложение по разрешению конфликта
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conflict_id: { type: string, format: uuid }
+              required: [conflict_id]
+      responses:
+        '200': { description: OK }
+      x-audience: [web]
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Список уведомлений
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+      x-audience: [web, mobile]
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Отметить уведомление прочитанным
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: OK }
+      x-audience: [web, mobile]
+
+  /admin/spaces:
+    get:
+      tags: [Admin]
+      summary: Все пространства (админ)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+      x-audience: [web]
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Все пользователи (админ)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+      x-audience: [web]
+  /admin/spaces/{id}:
+    patch:
+      tags: [Admin]
+      summary: Изменить пространство (админ)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: OK }
+      x-audience: [web]
+  /admin/users/{id}:
+    patch:
+      tags: [Admin]
+      summary: Изменить пользователя (админ)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: OK }
+      x-audience: [web]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TokenValue:
+      name: token
+      in: path
+      required: true
+      schema: { type: string }
+    From:
+      name: from
+      in: query
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      schema: { type: string, format: date-time }
+  schemas:
+    Preset:
+      type: string
+      enum: [FULL, OWN, BUSY, READ]
+    SyncProvider:
+      type: string
+      enum: [CALDAV, GOOGLE, MICROSOFT]
+    SyncDirection:
+      type: string
+      enum: [BOTH, IMPORT, EXPORT]
+    SyncStatus:
+      type: string
+      enum: [IDLE, SYNCING, ERROR, CONFLICT]
+    SourceVisibility:
+      type: string
+      enum: [SHARED, PRIVATE]
+    RegisterRequest:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        password: { type: string, minLength: 8 }
+      required: [name, email, password]
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+    AuthResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        role: { type: string, enum: [USER, ADMIN] }
+        timezone: { type: string, example: Europe/Moscow }
+        created_at: { type: string, format: date-time }
+    Space:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        owner_id: { type: string, format: uuid }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        deleted_at: { type: string, format: date-time, nullable: true }
+    Source:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        space_id: { type: string, format: uuid }
+        owner_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        color: { type: string, example: '#5B5FEF' }
+        visibility: { $ref: '#/components/schemas/SourceVisibility' }
+        created_at: { type: string, format: date-time }
+    SourceInput:
+      type: object
+      properties:
+        name: { type: string }
+        color: { type: string }
+        visibility: { $ref: '#/components/schemas/SourceVisibility' }
+      required: [name, color]
+    Event:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        source_id: { type: string, format: uuid }
+        creator_id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        all_day: { type: boolean, default: false }
+        timezone: { type: string, example: Europe/Moscow }
+        location: { type: string, nullable: true }
+        rrule: { type: string, nullable: true, example: 'FREQ=WEEKLY;BYDAY=TU' }
+        recurrence_parent_id: { type: string, format: uuid, nullable: true }
+        recurrence_exceptions: { type: array, nullable: true, items: { type: string, format: date-time } }
+        external_id: { type: string, nullable: true }
+        external_provider: { $ref: '#/components/schemas/SyncProvider' }
+        sync_status: { $ref: '#/components/schemas/SyncStatus' }
+        last_synced_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    EventInput:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string, nullable: true }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        all_day: { type: boolean }
+        timezone: { type: string }
+        location: { type: string, nullable: true }
+        rrule: { type: string, nullable: true }
+      required: [title, start_at, end_at]
+    ParsedEvent:
+      type: object
+      properties:
+        title: { type: string }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        all_day: { type: boolean }
+        confidence: { type: number, format: float }
+    Token:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        space_id: { type: string, format: uuid }
+        token: { type: string, description: Возвращается только при создании }
+        preset: { $ref: '#/components/schemas/Preset' }
+        expires_at: { type: string, format: date-time, nullable: true }
+        used_at: { type: string, format: date-time, nullable: true }
+        used_by: { type: string, format: uuid, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    Member:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        space_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        preset: { $ref: '#/components/schemas/Preset' }
+        joined_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time, nullable: true }
+    EventHistory:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        event_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        action: { type: string, enum: [CREATED, UPDATED, DELETED] }
+        old_data: { type: object, nullable: true }
+        new_data: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+    ExternalConnection:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        provider: { $ref: '#/components/schemas/SyncProvider' }
+        caldav_url: { type: string, nullable: true }
+        caldav_username: { type: string, nullable: true }
+        last_sync_at: { type: string, format: date-time, nullable: true }
+        sync_status: { $ref: '#/components/schemas/SyncStatus' }
+        created_at: { type: string, format: date-time }
+    ExternalConnectionInput:
+      type: object
+      properties:
+        provider: { $ref: '#/components/schemas/SyncProvider' }
+        caldav_url: { type: string, nullable: true }
+        caldav_username: { type: string, nullable: true }
+        caldav_password: { type: string, nullable: true }
+        oauth_code: { type: string, nullable: true }
+      required: [provider]
+    SourceExternalMap:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        source_id: { type: string, format: uuid }
+        external_connection_id: { type: string, format: uuid }
+        external_calendar_id: { type: string }
+        sync_direction: { $ref: '#/components/schemas/SyncDirection' }
+    SyncConflict:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        event_id: { type: string, format: uuid }
+        external_connection_id: { type: string, format: uuid }
+        local_data: { type: object }
+        external_data: { type: object }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        resolution: { type: string, nullable: true }
+    EventShare:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        event_id: { type: string, format: uuid }
+        target_source_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        read_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }

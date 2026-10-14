@@ -1,0 +1,11 @@
+allowBuilds:
+  bcrypt: true
+  msgpackr-extract: true
+  esbuild: true
+  '@parcel/watcher': true
+  unrs-resolver: true
+  workerd: true
+  prisma: true
+  '@prisma/engines': true
+  '@prisma/client': true
+  '@scarf/scarf': false
