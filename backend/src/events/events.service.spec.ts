@@ -16,6 +16,7 @@ describe('EventsService', () => {
     $transaction: jest.Mock;
   };
   let spaces: { getAccess: jest.Mock; ensureMember: jest.Mock };
+  let realtime: { eventChanged: jest.Mock };
   let service: EventsService;
 
   const baseEvent = {
@@ -56,7 +57,12 @@ describe('EventsService', () => {
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
     spaces = { getAccess: jest.fn(), ensureMember: jest.fn() };
-    service = new EventsService(prisma as never, spaces as never);
+    realtime = { eventChanged: jest.fn().mockResolvedValue(undefined) };
+    service = new EventsService(
+      prisma as never,
+      spaces as never,
+      realtime as never,
+    );
   });
 
   it('создаёт событие и пишет историю CREATED', async () => {

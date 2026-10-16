@@ -6,6 +6,9 @@ import {
 import { Event, Preset } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { RealtimeEvents } from '../realtime/realtime.events';
+import { isEventMasked, maskEvent } from './event-mask';
 import {
   CreateEventDto,
   ListAllEventsDto,
@@ -31,10 +34,11 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly spaces: SpacesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async create(userId: string, sourceId: string, dto: CreateEventDto) {
-    const { access } = await this.resolveSource(userId, sourceId);
+    const { access, source } = await this.resolveSource(userId, sourceId);
     this.assertCanWrite(access, userId, null);
     const event = await this.prisma.event.create({
       data: {
@@ -51,6 +55,11 @@ export class EventsService {
       },
     });
     await this.writeHistory(event.id, userId, 'CREATED', null, snapshot(event));
+    await this.realtime.eventChanged(
+      RealtimeEvents.eventCreated,
+      event,
+      source,
+    );
     return event;
   }
 
@@ -189,7 +198,7 @@ export class EventsService {
   }
 
   async update(userId: string, eventId: string, dto: UpdateEventDto) {
-    const { event: current, access } = await this.loadWithAccess(
+    const { event: current, access, source } = await this.loadWithAccess(
       userId,
       eventId,
     );
@@ -214,11 +223,16 @@ export class EventsService {
       snapshot(current),
       snapshot(updated),
     );
+    await this.realtime.eventChanged(
+      RealtimeEvents.eventUpdated,
+      updated,
+      source,
+    );
     return updated;
   }
 
   async remove(userId: string, eventId: string) {
-    const { event: current, access } = await this.loadWithAccess(
+    const { event: current, access, source } = await this.loadWithAccess(
       userId,
       eventId,
     );
@@ -228,6 +242,11 @@ export class EventsService {
       data: { deleted_at: new Date() },
     });
     await this.writeHistory(eventId, userId, 'DELETED', snapshot(current), null);
+    await this.realtime.eventChanged(
+      RealtimeEvents.eventDeleted,
+      current,
+      source,
+    );
     return { success: true };
   }
 
@@ -244,23 +263,11 @@ export class EventsService {
   }
 
   private isMasked(event: Event, access: SpaceAccess, userId: string) {
-    return (
-      access.preset === 'BUSY' ||
-      (access.preset === 'OWN' && event.creator_id !== userId)
-    );
+    return isEventMasked(event, access.preset, userId);
   }
 
   private mask(event: Event, access: SpaceAccess, userId: string) {
-    if (!this.isMasked(event, access, userId)) {
-      return { ...event, busy: false };
-    }
-    return {
-      ...event,
-      title: 'Занято',
-      description: null,
-      location: null,
-      busy: true,
-    };
+    return maskEvent(event, access.preset, userId);
   }
 
   private assertCanWrite(
@@ -289,19 +296,19 @@ export class EventsService {
     }
     const source = await this.prisma.source.findFirst({
       where: { id: event.source_id },
-      select: { space_id: true },
+      select: { space_id: true, visibility: true },
     });
     if (!source) {
       throw new NotFoundException('Источник не найден');
     }
     const access = await this.spaces.getAccess(userId, source.space_id);
-    return { event, access };
+    return { event, access, source };
   }
 
   private async resolveSource(userId: string, sourceId: string) {
     const source = await this.prisma.source.findFirst({
       where: { id: sourceId, deleted_at: null },
-      select: { id: true, space_id: true },
+      select: { id: true, space_id: true, visibility: true },
     });
     if (!source) {
       throw new NotFoundException('Источник не найден');

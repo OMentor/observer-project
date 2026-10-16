@@ -19,6 +19,7 @@ describe('TokensService', () => {
     user: { update: jest.Mock };
   };
   let spaces: { getAccess: jest.Mock };
+  let realtime: { memberJoined: jest.Mock; tokenActivated: jest.Mock };
   let service: TokensService;
 
   const storedToken = {
@@ -47,7 +48,12 @@ describe('TokensService', () => {
       user: { update: jest.fn() },
     };
     spaces = { getAccess: jest.fn() };
-    service = new TokensService(prisma as never, spaces as never);
+    realtime = { memberJoined: jest.fn(), tokenActivated: jest.fn() };
+    service = new TokensService(
+      prisma as never,
+      spaces as never,
+      realtime as never,
+    );
   });
 
   it('create возвращает открытый токен один раз и хранит хэш', async () => {

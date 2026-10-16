@@ -11,6 +11,10 @@ describe('MembersService', () => {
     space: { findFirst: jest.Mock };
   };
   let spaces: { ensureMember: jest.Mock; getAccess: jest.Mock };
+  let realtime: {
+    memberUpdated: jest.Mock;
+    memberKicked: jest.Mock;
+  };
   let service: MembersService;
 
   beforeEach(() => {
@@ -23,7 +27,15 @@ describe('MembersService', () => {
       space: { findFirst: jest.fn() },
     };
     spaces = { ensureMember: jest.fn(), getAccess: jest.fn() };
-    service = new MembersService(prisma as never, spaces as never);
+    realtime = {
+      memberUpdated: jest.fn(),
+      memberKicked: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new MembersService(
+      prisma as never,
+      spaces as never,
+      realtime as never,
+    );
   });
 
   it('list требует членства и возвращает участников', async () => {

@@ -9,6 +9,7 @@ import { Token } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpacesService } from '../spaces/spaces.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   ActivateTokenDto,
   BatchTokenDto,
@@ -20,6 +21,7 @@ export class TokensService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly spaces: SpacesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async create(userId: string, spaceId: string, dto: CreateTokenDto) {
@@ -134,6 +136,9 @@ export class TokensService {
         data: { name: dto.name },
       });
     }
+
+    this.realtime.memberJoined(token.space_id, userId, token.preset);
+    this.realtime.tokenActivated(token.space_id, userId, token.preset);
 
     return { success: true, space_id: token.space_id, preset: token.preset };
   }

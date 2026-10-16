@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpacesService } from '../spaces/spaces.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { UpdateMemberDto } from './members.dto';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class MembersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly spaces: SpacesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async list(userId: string, spaceId: string) {
@@ -25,10 +27,17 @@ export class MembersService {
 
   async update(userId: string, memberId: string, dto: UpdateMemberDto) {
     const member = await this.loadForManage(userId, memberId);
-    return this.prisma.spaceMember.update({
+    const updated = await this.prisma.spaceMember.update({
       where: { id: member.id },
       data: { preset: dto.preset },
     });
+    this.realtime.memberUpdated(
+      member.space_id,
+      member.id,
+      member.user_id,
+      dto.preset,
+    );
+    return updated;
   }
 
   async remove(userId: string, memberId: string) {
@@ -37,6 +46,7 @@ export class MembersService {
       where: { id: member.id },
       data: { revoked_at: new Date() },
     });
+    await this.realtime.memberKicked(member.space_id, member.user_id);
     return { success: true };
   }
 
