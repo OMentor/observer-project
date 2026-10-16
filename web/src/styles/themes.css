@@ -1,0 +1,68 @@
+/* Тёмная тема — основная (по умолчанию). Светлая включается классом .light на <html>. */
+:root {
+  color-scheme: dark;
+
+  --bg: #1a1a1e;
+  --bg-surface: #25252b;
+  --bg-elevated: #2e2e35;
+
+  --border: #3a3a42;
+  --border-subtle: #2e2e35;
+
+  --text-primary: #f5f3ef;
+  --text-secondary: #a8a29e;
+  --text-muted: #6b6b72;
+  --text-inverse: #1a1a1e;
+
+  --accent: #5b5fef;
+  --accent-hover: #6b6fef;
+  --accent-active: #4b4fdf;
+  --accent-muted: rgba(91, 95, 239, 0.15);
+
+  --amber: #f0a030;
+  --amber-hover: #f5b040;
+  --amber-active: #d98a1f;
+  --amber-muted: rgba(240, 160, 48, 0.15);
+
+  --success: #34c77b;
+  --success-muted: rgba(52, 199, 123, 0.15);
+
+  --danger: #e05c4a;
+  --danger-hover: #e86c5a;
+  --danger-active: #d04c3a;
+  --danger-muted: rgba(224, 92, 74, 0.15);
+}
+
+.light {
+  color-scheme: light;
+
+  --bg: #faf8f5;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f0ede8;
+
+  --border: #e0dcd5;
+  --border-subtle: #edeae4;
+
+  --text-primary: #1a1a1e;
+  --text-secondary: #6b6660;
+  --text-muted: #a8a29e;
+  --text-inverse: #faf8f5;
+
+  --accent: #4a4ee0;
+  --accent-hover: #5a5ee8;
+  --accent-active: #3a3ed0;
+  --accent-muted: rgba(74, 78, 224, 0.1);
+
+  --amber: #d98a1f;
+  --amber-hover: #e59a2f;
+  --amber-active: #c97a0f;
+  --amber-muted: rgba(217, 138, 31, 0.12);
+
+  --success: #2ba865;
+  --success-muted: rgba(43, 168, 101, 0.12);
+
+  --danger: #c94a38;
+  --danger-hover: #d95a48;
+  --danger-active: #b93a28;
+  --danger-muted: rgba(201, 74, 56, 0.12);
+}

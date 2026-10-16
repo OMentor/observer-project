@@ -5,15 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Плетение</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap"
+      rel="stylesheet"
+    />
     <script>
       (function () {
         try {
           var raw = localStorage.getItem('pletenie.theme');
-          var theme = raw ? (JSON.parse(raw).state || {}).theme : 'light';
-          if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-          }
-          document.documentElement.style.colorScheme = theme || 'light';
+          var theme = raw ? (JSON.parse(raw).state || {}).theme : 'dark';
+          var dark =
+            theme !== 'light' &&
+            !(
+              theme === 'system' &&
+              !window.matchMedia('(prefers-color-scheme: dark)').matches
+            );
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.classList.toggle('light', !dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
         } catch (e) {
           /* noop */
         }

@@ -1,0 +1,109 @@
+/* FullCalendar: сведение к дизайн-системе «Плетение». */
+.fc {
+  --fc-border-color: var(--border);
+  --fc-today-bg-color: var(--accent-muted);
+  --fc-neutral-bg-color: var(--bg-surface);
+  --fc-page-bg-color: var(--bg);
+  --fc-event-bg-color: transparent;
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: var(--text-primary);
+  font-family: 'Satoshi', 'General Sans', system-ui, sans-serif;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.fc .fc-button {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+  text-transform: none;
+}
+
+.fc .fc-button:hover {
+  background: var(--bg-surface);
+}
+
+.fc .fc-button:focus {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.fc .fc-col-header-cell {
+  padding: 12px 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.fc .fc-daygrid-day-number {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px;
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.fc .fc-timegrid-slot {
+  height: 48px;
+}
+
+.fc .fc-timegrid-slot-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Drag-and-drop: обратная связь. */
+.fc-event-dragging {
+  opacity: 0.7 !important;
+  transform: scale(1.02) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  z-index: 1000 !important;
+}
+
+.fc-event-resizing {
+  opacity: 0.7 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+.fc-highlight {
+  background: var(--accent-muted) !important;
+  border: 1px dashed var(--accent) !important;
+  border-radius: 6px;
+}
+
+/* Конфликты: пульсация. */
+@keyframes conflict-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(224, 92, 74, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(224, 92, 74, 0);
+  }
+}
+
+.conflict-indicator {
+  animation: conflict-pulse 2s infinite;
+}
