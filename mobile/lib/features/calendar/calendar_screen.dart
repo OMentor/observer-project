@@ -6,11 +6,27 @@ import '../../core/models.dart';
 import '../../shared/hex_color.dart';
 import '../events/event_form_sheet.dart';
 
-class CalendarScreen extends ConsumerWidget {
+class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends ConsumerState<CalendarScreen> {
+  String _spaceFilter = '';
+  String _sourceFilter = '';
+  String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final eventsAsync = ref.watch(allEventsProvider);
     final spacesAsync = ref.watch(spacesProvider);
     final me = ref.watch(authControllerProvider).asData?.value?.id;
@@ -35,10 +51,18 @@ class CalendarScreen extends ConsumerWidget {
 
     final canCreate = sources.any(canCreateIn);
 
+    final spaceSources =
+        _spaceFilter.isEmpty
+            ? sources
+            : sources.where((s) => s.spaceId == _spaceFilter).toList();
+    final sourceFilterValid =
+        _sourceFilter.isEmpty ||
+        spaceSources.any((s) => s.id == _sourceFilter);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Календарь')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _addEvent(context, ref, sources, canCreate),
+        onPressed: () => _addEvent(context, sources, canCreate),
         child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
@@ -49,67 +73,113 @@ class CalendarScreen extends ConsumerWidget {
         child: eventsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('Ошибка: $error')),
-          data: (events) {
-            if (events.isEmpty) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 160),
-                  Center(child: Text('Событий пока нет')),
-                ],
-              );
-            }
+          data: (allEvents) {
+            final events = allEvents.where((event) {
+              if (_spaceFilter.isNotEmpty &&
+                  spaceBySource[event.sourceId] != _spaceFilter) {
+                return false;
+              }
+              if (sourceFilterValid &&
+                  _sourceFilter.isNotEmpty &&
+                  event.sourceId != _sourceFilter) {
+                return false;
+              }
+              if (_query.isNotEmpty &&
+                  !event.title.toLowerCase().contains(
+                        _query.toLowerCase(),
+                      )) {
+                return false;
+              }
+              return true;
+            }).toList();
             final groups = _groupByDay(events);
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: groups.length,
-              itemBuilder: (context, index) {
-                final group = groups[index];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        group.label,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    for (final event in group.events)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: Container(
-                            width: 4,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: event.busy
-                                  ? Colors.grey
-                                  : colorById[event.sourceId] ??
-                                      Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          title: Text(event.title),
-                          subtitle: Text(_timeLabel(event)),
-                          trailing: event.location == null
-                              ? null
-                              : const Icon(Icons.place_outlined, size: 18),
-                          onTap: event.busy
-                              ? null
-                              : () => _openEvent(
-                                    context,
-                                    ref,
-                                    event,
-                                    sources,
-                                    presetBySpace[
-                                        spaceBySource[event.sourceId]],
-                                    me,
+
+            return Column(
+              children: [
+                if (sources.isNotEmpty)
+                  _Filters(
+                    spaces: spaces,
+                    sources: spaceSources,
+                    spaceFilter: _spaceFilter,
+                    sourceFilter: sourceFilterValid ? _sourceFilter : '',
+                    controller: _searchController,
+                    onSpace: (value) => setState(() {
+                      _spaceFilter = value;
+                      _sourceFilter = '';
+                    }),
+                    onSource: (value) => setState(() => _sourceFilter = value),
+                    onQuery: (value) => setState(() => _query = value),
+                  ),
+                Expanded(
+                  child: events.isEmpty
+                      ? ListView(
+                          children: const [
+                            SizedBox(height: 160),
+                            Center(child: Text('Событий пока нет')),
+                          ],
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: groups.length,
+                          itemBuilder: (context, index) {
+                            final group = groups[index];
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    group.label,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
                                   ),
+                                ),
+                                for (final event in group.events)
+                                  Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: ListTile(
+                                      leading: Container(
+                                        width: 4,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: event.busy
+                                              ? Colors.grey
+                                              : colorById[event.sourceId] ??
+                                                  Theme.of(context)
+                                                      .colorScheme
+                                                      .primary,
+                                          borderRadius:
+                                              BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      title: Text(event.title),
+                                      subtitle: Text(_timeLabel(event)),
+                                      trailing: event.location == null
+                                          ? null
+                                          : const Icon(
+                                              Icons.place_outlined,
+                                              size: 18,
+                                            ),
+                                      onTap: event.busy
+                                          ? null
+                                          : () => _openEvent(
+                                                context,
+                                                event,
+                                                sources,
+                                                presetBySpace[spaceBySource[
+                                                    event.sourceId]],
+                                                me,
+                                              ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
-                      ),
-                  ],
-                );
-              },
+                ),
+              ],
             );
           },
         ),
@@ -119,7 +189,6 @@ class CalendarScreen extends ConsumerWidget {
 
   Future<void> _addEvent(
     BuildContext context,
-    WidgetRef ref,
     List<Source> sources,
     bool canCreate,
   ) async {
@@ -139,12 +208,15 @@ class CalendarScreen extends ConsumerWidget {
       );
       return;
     }
-    await showEventForm(context, sources: sources);
+    await showEventForm(
+      context,
+      sources: sources,
+      initialSourceId: _sourceFilter.isEmpty ? null : _sourceFilter,
+    );
   }
 
   Future<void> _openEvent(
     BuildContext context,
-    WidgetRef ref,
     CalendarEvent event,
     List<Source> sources,
     String? preset,
@@ -163,6 +235,93 @@ class CalendarScreen extends ConsumerWidget {
       context,
       sources: source.toList(),
       event: event,
+    );
+  }
+}
+
+class _Filters extends StatelessWidget {
+  const _Filters({
+    required this.spaces,
+    required this.sources,
+    required this.spaceFilter,
+    required this.sourceFilter,
+    required this.controller,
+    required this.onSpace,
+    required this.onSource,
+    required this.onQuery,
+  });
+
+  final List<Space> spaces;
+  final List<Source> sources;
+  final String spaceFilter;
+  final String sourceFilter;
+  final TextEditingController controller;
+  final ValueChanged<String> onSpace;
+  final ValueChanged<String> onSource;
+  final ValueChanged<String> onQuery;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            onChanged: onQuery,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Поиск по названию',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: spaceFilter.isEmpty ? null : spaceFilter,
+                  decoration: const InputDecoration(
+                    labelText: 'Пространство',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('Все')),
+                    for (final space in spaces)
+                      DropdownMenuItem(
+                        value: space.id,
+                        child: Text(space.name),
+                      ),
+                  ],
+                  onChanged: (value) => onSpace(value ?? ''),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: sourceFilter.isEmpty ? null : sourceFilter,
+                  decoration: const InputDecoration(
+                    labelText: 'Источник',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('Все')),
+                    for (final source in sources)
+                      DropdownMenuItem(
+                        value: source.id,
+                        child: Text(source.name),
+                      ),
+                  ],
+                  onChanged: (value) => onSource(value ?? ''),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

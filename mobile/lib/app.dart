@@ -36,6 +36,16 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, AppUser?>(AuthController.new);
 
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => ThemeMode.system;
+
+  void set(ThemeMode mode) => state = mode;
+}
+
+final themeModeProvider =
+    NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
+
 final spacesProvider = FutureProvider<List<Space>>(
   (ref) => ref.read(apiClientProvider).fetchSpaces(),
 );
