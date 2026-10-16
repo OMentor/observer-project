@@ -76,6 +76,16 @@ class Source {
         visibility: json['visibility'] as String? ?? 'SHARED',
         createdAt: json['created_at'] as String,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'space_id': spaceId,
+        'owner_id': ownerId,
+        'name': name,
+        'color': color,
+        'visibility': visibility,
+        'created_at': createdAt,
+      };
 }
 
 class Space {
@@ -106,6 +116,15 @@ class Space {
                 .toList() ??
             const [],
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'owner_id': ownerId,
+        'created_at': createdAt,
+        'deleted_at': deletedAt,
+        'sources': sources.map((s) => s.toJson()).toList(),
+      };
 }
 
 class Preset {
@@ -182,6 +201,23 @@ class CalendarEvent {
         updatedAt: json['updated_at'] as String,
         busy: json['busy'] as bool? ?? false,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'source_id': sourceId,
+        'creator_id': creatorId,
+        'title': title,
+        'description': description,
+        'start_at': startAt.toUtc().toIso8601String(),
+        'end_at': endAt.toUtc().toIso8601String(),
+        'all_day': allDay,
+        'timezone': timezone,
+        'location': location,
+        'rrule': rrule,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+        'busy': busy,
+      };
 }
 
 class Token {

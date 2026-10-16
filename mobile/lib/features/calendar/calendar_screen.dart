@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app.dart';
 import '../../core/models.dart';
 import '../../shared/hex_color.dart';
+import '../../shared/widgets/offline_banner.dart';
 import '../../shared/widgets/realtime_indicator.dart';
 import '../events/event_form_sheet.dart';
+import 'calendar_range.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
@@ -18,6 +20,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   String _spaceFilter = '';
   String _sourceFilter = '';
   String _query = '';
+  CalendarView _view = CalendarView.month;
+  DateTime _anchor = DateTime.now();
   final _searchController = TextEditingController();
 
   @override
@@ -79,6 +83,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           error: (error, _) => Center(child: Text('Ошибка: $error')),
           data: (allEvents) {
             final events = allEvents.where((event) {
+              if (!overlapsPeriod(
+                _view,
+                _anchor,
+                event.startAt,
+                event.endAt,
+              )) {
+                return false;
+              }
               if (_spaceFilter.isNotEmpty &&
                   spaceBySource[event.sourceId] != _spaceFilter) {
                 return false;
@@ -100,6 +112,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
             return Column(
               children: [
+                _PeriodBar(
+                  view: _view,
+                  title: periodTitle(_view, _anchor),
+                  onView: (value) => setState(() => _view = value),
+                  onPrev: () => setState(() {
+                    _anchor = shiftPeriod(_view, _anchor, -1);
+                  }),
+                  onNext: () => setState(() {
+                    _anchor = shiftPeriod(_view, _anchor, 1);
+                  }),
+                  onToday: () => setState(() => _anchor = DateTime.now()),
+                ),
+                const OfflineBanner(),
                 if (sources.isNotEmpty)
                   _Filters(
                     spaces: spaces,
@@ -119,7 +144,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       ? ListView(
                           children: const [
                             SizedBox(height: 160),
-                            Center(child: Text('Событий пока нет')),
+                            Center(child: Text('В этом периоде нет событий')),
                           ],
                         )
                       : ListView.builder(
@@ -347,26 +372,95 @@ List<_DayGroup> _groupByDay(List<CalendarEvent> events) {
   final keys = map.keys.toList()..sort();
   return [
     for (final key in keys)
-      _DayGroup(_labelFor(map[key]!.first.startAt), map[key]!),
+      _DayGroup(dayLabel(map[key]!.first.startAt), map[key]!),
   ];
 }
 
-String _labelFor(DateTime date) {
-  const months = [
-    'января',
-    'февраля',
-    'марта',
-    'апреля',
-    'мая',
-    'июня',
-    'июля',
-    'августа',
-    'сентября',
-    'октября',
-    'ноября',
-    'декабря',
-  ];
-  return '${date.day} ${months[date.month - 1]} ${date.year}';
+class _PeriodBar extends StatelessWidget {
+  const _PeriodBar({
+    required this.view,
+    required this.title,
+    required this.onView,
+    required this.onPrev,
+    required this.onNext,
+    required this.onToday,
+  });
+
+  final CalendarView view;
+  final String title;
+  final ValueChanged<CalendarView> onView;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: onPrev,
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Назад',
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onToday,
+                icon: const Icon(Icons.today),
+                tooltip: 'Сегодня',
+              ),
+              IconButton(
+                onPressed: onNext,
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Вперёд',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SegmentedButton<CalendarView>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: CalendarView.day,
+                        label: Text('День'),
+                      ),
+                      ButtonSegment(
+                        value: CalendarView.week,
+                        label: Text('Неделя'),
+                      ),
+                      ButtonSegment(
+                        value: CalendarView.month,
+                        label: Text('Месяц'),
+                      ),
+                    ],
+                    selected: {view},
+                    onSelectionChanged: (selection) => onView(selection.first),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
 }
 
 String _timeLabel(CalendarEvent event) {

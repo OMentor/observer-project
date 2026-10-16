@@ -5,7 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'core/api/api_client.dart';
 import 'core/auth/session_manager.dart';
 import 'core/models.dart';
+import 'core/network/connectivity_service.dart';
+import 'core/notifications/notification_service.dart';
 import 'core/realtime/realtime_service.dart';
+import 'core/repository/calendar_repository.dart';
+import 'core/storage/calendar_cache.dart';
+import 'core/storage/sqlite_calendar_cache.dart';
 import 'core/storage/token_storage.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
@@ -48,8 +53,35 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 final themeModeProvider =
     NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
 
+class LastSyncedNotifier extends Notifier<DateTime?> {
+  @override
+  DateTime? build() => null;
+
+  void set(DateTime value) => state = value;
+}
+
+final lastSyncedAtProvider =
+    NotifierProvider<LastSyncedNotifier, DateTime?>(LastSyncedNotifier.new);
+
+final notificationServiceProvider =
+    Provider<NotificationService>((ref) => NotificationService());
+
+final calendarCacheProvider = Provider<CalendarCache>(
+  (ref) => SqliteCalendarCache(
+    onLastSynced: (value) =>
+        ref.read(lastSyncedAtProvider.notifier).set(value),
+  ),
+);
+
+final calendarRepositoryProvider = Provider<CalendarRepository>(
+  (ref) => CalendarRepository(
+    source: ref.watch(apiClientProvider),
+    cache: ref.watch(calendarCacheProvider),
+  ),
+);
+
 final spacesProvider = FutureProvider<List<Space>>(
-  (ref) => ref.read(apiClientProvider).fetchSpaces(),
+  (ref) => ref.read(calendarRepositoryProvider).loadSpaces(),
 );
 
 final spaceProvider = FutureProvider.family<Space, String>(
@@ -60,15 +92,9 @@ final eventsProvider = FutureProvider.family<List<CalendarEvent>, String>(
   (ref, sourceId) => ref.read(apiClientProvider).fetchEvents(sourceId),
 );
 
-final allEventsProvider = FutureProvider<List<CalendarEvent>>((ref) async {
-  final api = ref.read(apiClientProvider);
-  final spaces = await api.fetchSpaces();
-  final sources = spaces.expand((s) => s.sources);
-  final lists = await Future.wait(sources.map((s) => api.fetchEvents(s.id)));
-  final events = lists.expand((e) => e).toList();
-  events.sort((a, b) => a.startAt.compareTo(b.startAt));
-  return events;
-});
+final allEventsProvider = FutureProvider<List<CalendarEvent>>(
+  (ref) => ref.read(calendarRepositoryProvider).loadAllEvents(),
+);
 
 final membersProvider = FutureProvider.family<List<Member>, String>(
   (ref, spaceId) => ref.read(apiClientProvider).fetchMembers(spaceId),
@@ -153,35 +179,74 @@ class RealtimeController extends Notifier<RealtimeStatus> {
     }
     switch (name) {
       case 'event.created':
-        _snack('Новое событие: ${map['title'] ?? ''}');
+        _notify('Новое событие: ${map['title'] ?? ''}');
       case 'event.updated':
-        _snack('Событие обновлено');
+        _notify('Событие обновлено');
       case 'event.deleted':
-        _snack('Событие удалено');
+        _notify('Событие удалено');
     }
   }
 
   void _notifyMember(String name, Map<String, dynamic> payload, String? me) {
     if (name == 'member.kicked') {
-      _snack(
+      _notify(
         payload['user_id'] == me
             ? 'Доступ к пространству отозван'
             : 'Участник удалён из пространства',
       );
     } else if (name == 'token.activated' && payload['user_id'] != me) {
-      _snack('Новый участник присоединился');
+      _notify('Новый участник присоединился');
     }
   }
 
-  void _snack(String message) {
+  void _notify(String message) {
     scaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(content: Text(message)),
     );
+    ref.read(notificationServiceProvider).show(
+          title: 'Плетение',
+          body: message,
+        );
   }
 }
 
 final realtimeStatusProvider =
     NotifierProvider<RealtimeController, RealtimeStatus>(RealtimeController.new);
+
+/// Следит за восстановлением сети: повторно загружает данные и уведомляет
+/// пользователя. Также подхватывает отметку последней синхронизации из кэша.
+class SyncController extends Notifier<void> {
+  @override
+  void build() {
+    _seedLastSynced();
+
+    ref.listen<bool>(isOnlineProvider, (previous, next) {
+      if (previous == false && next == true) {
+        scaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Соединение восстановлено — обновляем данные'),
+          ),
+        );
+        ref.invalidate(spacesProvider);
+        ref.invalidate(allEventsProvider);
+      }
+    });
+  }
+
+  Future<void> _seedLastSynced() async {
+    try {
+      final value = await ref.read(calendarCacheProvider).readLastSyncedAt();
+      if (value != null) {
+        ref.read(lastSyncedAtProvider.notifier).set(value);
+      }
+    } catch (_) {
+      // кэш ещё не создан — не критично
+    }
+  }
+}
+
+final syncStatusProvider =
+    NotifierProvider<SyncController, void>(SyncController.new);
 
 class _RouterRefresh extends ChangeNotifier {
   void notify() => notifyListeners();

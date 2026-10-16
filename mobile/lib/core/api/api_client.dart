@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../auth/session_manager.dart';
 import '../models.dart';
+import 'calendar_data_source.dart';
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
@@ -9,14 +10,15 @@ const String apiBaseUrl = String.fromEnvironment(
 );
 
 class ApiException implements Exception {
-  ApiException(this.message);
+  ApiException(this.message, {this.isNetwork = false});
   final String message;
+  final bool isNetwork;
 
   @override
   String toString() => message;
 }
 
-class ApiClient {
+class ApiClient implements CalendarDataSource {
   ApiClient({
     required this.session,
     required this.onSessionExpired,
@@ -96,14 +98,18 @@ class ApiClient {
   }
 
   Never _throw(DioException error) {
-    final data = error.response?.data;
+    final response = error.response;
+    final data = response?.data;
     if (data is Map && data['message'] != null) {
       final message = data['message'];
       throw ApiException(
         message is List ? message.join(', ') : message.toString(),
       );
     }
-    throw ApiException('Ошибка сети. Проверьте подключение.');
+    throw ApiException(
+      'Ошибка сети. Проверьте подключение.',
+      isNetwork: response == null,
+    );
   }
 
   Future<T> _guard<T>(Future<T> Function() action) async {
@@ -143,6 +149,7 @@ class ApiClient {
     }
   }
 
+  @override
   Future<List<Space>> fetchSpaces() => _guard(() async {
         final res = await _dio.get<List<dynamic>>('/spaces');
         return res.data!
@@ -190,6 +197,7 @@ class ApiClient {
   Future<void> deleteSource(String id) =>
       _guard(() => _dio.delete<void>('/sources/$id'));
 
+  @override
   Future<List<CalendarEvent>> fetchEvents(String sourceId) => _guard(() async {
         final res =
             await _dio.get<List<dynamic>>('/sources/$sourceId/events');
