@@ -7,10 +7,13 @@ describe('EventsService', () => {
       create: jest.Mock;
       findFirst: jest.Mock;
       findMany: jest.Mock;
+      count: jest.Mock;
       update: jest.Mock;
     };
     source: { findFirst: jest.Mock };
+    space: { findMany: jest.Mock };
     eventHistory: { create: jest.Mock; findMany: jest.Mock };
+    $transaction: jest.Mock;
   };
   let spaces: { getAccess: jest.Mock; ensureMember: jest.Mock };
   let service: EventsService;
@@ -44,10 +47,13 @@ describe('EventsService', () => {
         create: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
         update: jest.fn(),
       },
       source: { findFirst: jest.fn() },
+      space: { findMany: jest.fn() },
       eventHistory: { create: jest.fn(), findMany: jest.fn() },
+      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
     spaces = { getAccess: jest.fn(), ensureMember: jest.fn() };
     service = new EventsService(prisma as never, spaces as never);
@@ -176,5 +182,99 @@ describe('EventsService', () => {
     await expect(service.history('u1', 'e1')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('findAllAcross отдаёт события с маскировкой и пагинацией', async () => {
+    prisma.space.findMany.mockResolvedValue([
+      {
+        id: 'sp1',
+        owner_id: 'u1',
+        sources: [{ id: 'src1', visibility: 'SHARED' }],
+        members: [],
+      },
+      {
+        id: 'sp2',
+        owner_id: 'owner2',
+        sources: [{ id: 'src2', visibility: 'SHARED' }],
+        members: [{ preset: 'BUSY' }],
+      },
+    ]);
+    prisma.event.count.mockResolvedValue(2);
+    prisma.event.findMany.mockResolvedValue([
+      baseEvent,
+      { ...baseEvent, id: 'e2', source_id: 'src2', creator_id: 'other' },
+    ]);
+
+    const result = await service.findAllAcross('u1', {
+      page: 1,
+      pageSize: 50,
+    });
+
+    expect(result.total).toBe(2);
+    expect(result.page).toBe(1);
+    expect(result.items[0].busy).toBe(false);
+    expect(result.items[0].title).toBe('Созвон');
+    expect(result.items[1].busy).toBe(true);
+    expect(result.items[1].title).toBe('Занято');
+  });
+
+  it('findAllAcross скрывает приватные источники от не-FULL', async () => {
+    prisma.space.findMany.mockResolvedValue([
+      {
+        id: 'sp2',
+        owner_id: 'owner2',
+        sources: [
+          { id: 'srcShared', visibility: 'SHARED' },
+          { id: 'srcPrivate', visibility: 'PRIVATE' },
+        ],
+        members: [{ preset: 'READ' }],
+      },
+    ]);
+    prisma.event.count.mockResolvedValue(0);
+    prisma.event.findMany.mockResolvedValue([]);
+
+    await service.findAllAcross('u1', { page: 1, pageSize: 50 });
+
+    const where = prisma.event.findMany.mock.calls[0][0].where;
+    expect(where.source_id.in).toEqual(['srcShared']);
+  });
+
+  it('findAllAcross запрещает недоступное пространство', async () => {
+    prisma.space.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.findAllAcross('u1', {
+        space_id: 'spX',
+        page: 1,
+        pageSize: 50,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('findAllAcross с явным источником фильтрует по нему', async () => {
+    prisma.space.findMany.mockResolvedValue([
+      {
+        id: 'sp1',
+        owner_id: 'u1',
+        sources: [
+          { id: 'src1', visibility: 'SHARED' },
+          { id: 'src2', visibility: 'SHARED' },
+        ],
+        members: [],
+      },
+    ]);
+    prisma.event.count.mockResolvedValue(1);
+    prisma.event.findMany.mockResolvedValue([baseEvent]);
+
+    await service.findAllAcross('u1', {
+      source_id: 'src2',
+      page: 2,
+      pageSize: 10,
+    });
+
+    const args = prisma.event.findMany.mock.calls[0][0];
+    expect(args.where.source_id).toEqual({ in: ['src2'] });
+    expect(args.skip).toBe(10);
+    expect(args.take).toBe(10);
   });
 });

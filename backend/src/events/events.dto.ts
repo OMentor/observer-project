@@ -38,6 +38,18 @@ export const listEventsSchema = z.object({
   to: z.coerce.date().optional(),
 });
 
+export const listAllEventsSchema = z.object({
+  space_id: z.string().uuid().optional(),
+  source_id: z.string().uuid().optional(),
+  creator_id: z.string().uuid().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  q: z.string().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).default(50),
+});
+
 export type CreateEventDto = z.infer<typeof createEventSchema>;
 export type UpdateEventDto = z.infer<typeof updateEventSchema>;
 export type ListEventsDto = z.infer<typeof listEventsSchema>;
+export type ListAllEventsDto = z.infer<typeof listAllEventsSchema>;

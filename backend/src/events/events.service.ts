@@ -3,11 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Event } from '@prisma/client';
+import { Event, Preset } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
 import {
   CreateEventDto,
+  ListAllEventsDto,
   ListEventsDto,
   UpdateEventDto,
 } from './events.dto';
@@ -76,6 +77,115 @@ export class EventsService {
   async findOne(userId: string, eventId: string) {
     const { event, access } = await this.loadWithAccess(userId, eventId);
     return this.mask(event, access, userId);
+  }
+
+  async findAllAcross(userId: string, query: ListAllEventsDto) {
+    const spaces = await this.prisma.space.findMany({
+      where: {
+        deleted_at: null,
+        OR: [
+          { owner_id: userId },
+          { members: { some: { user_id: userId, revoked_at: null } } },
+        ],
+      },
+      select: {
+        id: true,
+        owner_id: true,
+        sources: {
+          where: { deleted_at: null },
+          select: { id: true, visibility: true },
+        },
+        members: {
+          where: { user_id: userId, revoked_at: null },
+          select: { preset: true },
+        },
+      },
+    });
+
+    const presetBySpace = new Map<string, Preset>();
+    const spaceBySource = new Map<string, string>();
+    const allowedSourceIds: string[] = [];
+
+    for (const space of spaces) {
+      const preset: Preset | undefined =
+        space.owner_id === userId ? 'FULL' : space.members[0]?.preset;
+      if (!preset) {
+        continue;
+      }
+      presetBySpace.set(space.id, preset);
+      for (const source of space.sources) {
+        if (source.visibility === 'PRIVATE' && preset !== 'FULL') {
+          continue;
+        }
+        spaceBySource.set(source.id, space.id);
+        allowedSourceIds.push(source.id);
+      }
+    }
+
+    if (query.space_id && !presetBySpace.has(query.space_id)) {
+      throw new ForbiddenException('Нет доступа к пространству');
+    }
+    if (query.source_id && !spaceBySource.has(query.source_id)) {
+      throw new ForbiddenException('Нет доступа к источнику');
+    }
+
+    let sourceIds = allowedSourceIds;
+    if (query.source_id) {
+      sourceIds = [query.source_id];
+    } else if (query.space_id) {
+      sourceIds = allowedSourceIds.filter(
+        (id) => spaceBySource.get(id) === query.space_id,
+      );
+    }
+
+    const page = query.page;
+    const pageSize = query.pageSize;
+
+    if (sourceIds.length === 0) {
+      return { items: [], total: 0, page, pageSize };
+    }
+
+    const where = {
+      source_id: { in: sourceIds },
+      deleted_at: null,
+      ...(query.creator_id ? { creator_id: query.creator_id } : {}),
+      ...(query.from || query.to
+        ? {
+            start_at: {
+              ...(query.from ? { gte: query.from } : {}),
+              ...(query.to ? { lte: query.to } : {}),
+            },
+          }
+        : {}),
+      ...(query.q
+        ? { title: { contains: query.q, mode: 'insensitive' as const } }
+        : {}),
+    };
+
+    const [total, events] = await this.prisma.$transaction([
+      this.prisma.event.count({ where }),
+      this.prisma.event.findMany({
+        where,
+        orderBy: { start_at: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      items: events.map((event) => {
+        const spaceId = spaceBySource.get(event.source_id) as string;
+        const preset = presetBySpace.get(spaceId) as Preset;
+        return this.mask(
+          event,
+          { isOwner: preset === 'FULL', preset },
+          userId,
+        );
+      }),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async update(userId: string, eventId: string, dto: UpdateEventDto) {

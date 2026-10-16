@@ -14,6 +14,8 @@ import { EventsService } from './events.service';
 import {
   CreateEventDto,
   createEventSchema,
+  ListAllEventsDto,
+  listAllEventsSchema,
   ListEventsDto,
   listEventsSchema,
   UpdateEventDto,
@@ -46,6 +48,14 @@ export class EventsController {
     @Query(new ZodValidationPipe(listEventsSchema)) query: ListEventsDto,
   ) {
     return this.events.findAll(user.id, sourceId, query);
+  }
+
+  @Get('events')
+  findAllAcross(
+    @CurrentUser() user: AuthUser,
+    @Query(new ZodValidationPipe(listAllEventsSchema)) query: ListAllEventsDto,
+  ) {
+    return this.events.findAllAcross(user.id, query);
   }
 
   @Get('events/:id')

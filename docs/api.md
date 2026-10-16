@@ -25,7 +25,7 @@ Access-токен живёт 15 минут, refresh — 30 дней (храни�
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` |
 | Spaces | `POST/GET /spaces`, `GET/PATCH/DELETE /spaces/:id` |
 | Sources | `POST/GET /spaces/:id/sources`, `PATCH/DELETE /sources/:id` |
-| Events | `POST/GET /sources/:id/events`, `GET/PATCH/DELETE /events/:id`, `GET /events/:id/history` |
+| Events | `POST/GET /sources/:id/events`, `GET /events` (сводный список с фильтрами/пагинацией), `GET/PATCH/DELETE /events/:id`, `GET /events/:id/history` |
 | Tokens | `POST/GET /spaces/:id/tokens`, `POST /tokens/batch`, `POST /tokens/:token/activate`, `DELETE /tokens/:id` |
 | Members | `GET /spaces/:id/members`, `PATCH/DELETE /members/:id` |
 | Sync | `POST/GET /sync/connections`, `DELETE /sync/connections/:id`, `POST /sync/connections/:id/force`, `POST/DELETE /sources/:id/link`, `GET /sync/conflicts`, `POST /sync/conflicts/:id/resolve` |
