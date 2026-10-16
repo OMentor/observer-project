@@ -36,9 +36,41 @@ Access-токен живёт 15 минут, refresh — 30 дней (храни�
 
 ## WebSocket
 
-Socket.IO на том же хосте. Комнаты — по пространствам. События:
-`event.created`, `event.updated`, `event.deleted`, `member.joined`, `member.kicked`,
-`token.activated`. Авторизация — JWT при подключении (этап 4).
+Socket.IO на том же хосте (`http://localhost:3000`, path `/socket.io`), CORS для
+`http://localhost:5173` и `http://localhost:3000`. Реализация — `RealtimeGateway`
+(см. `backend/src/realtime/`).
+
+**Авторизация при подключении.** Соединение отклоняется, если JWT не передан или
+невалиден. Токен берётся по приоритету: `auth.token` (handshake), `?token=` в query,
+заголовок `Authorization: Bearer`. При успехе сервер добавляет сокет в комнату
+`user:<userId>` и во все `space:<id>` доступных пользователю пространств.
+
+**Комнаты.** `user:<id>` — личные адресные события; `space:<id>` — события
+пространства. Подписка вручную: `space:subscribe` / `space:unsubscribe` с телом
+`{ space_id }` (с проверкой доступа через `SpacesService.getAccess`).
+
+**Исходящие события (сервер → клиент):**
+
+| Событие | Получатели | Payload |
+|---------|-----------|---------|
+| `connected` | подключившийся сокет | `{ user_id }` |
+| `event.created` / `event.updated` / `event.deleted` | пользователи пространства (по комнате `user:<id>`, маскированно под каждого) | `{ space_id, source_id, event, actor_id }` |
+| `member.joined` | комната пространства + пользователь | `{ space_id, user_id, preset, actor_id }` |
+| `member.updated` | комната пространства + пользователь | `{ space_id, member_id, user_id, preset, actor_id }` |
+| `member.kicked` | комната пространства + пользователь | `{ space_id, user_id, actor_id }` |
+| `token.activated` | комната пространства | `{ space_id, user_id, preset, actor_id }` |
+
+`event` в payload уже маскирован под получателя (для `BUSY`/чужих `OWN` → `title`:
+«Занято», `busy: true`). События из `PRIVATE`-источников не рассылаются получателям
+без пресета `FULL`. `actor_id` — инициатор изменения (используется клиентами, чтобы
+не показывать уведомление о собственном действии).
+
+**Force-leave при кике.** При `DELETE /members/:id` сервер удаляет сокеты
+отозванного пользователя из комнаты `space:<id>`, поэтому дальнейшие события
+пространства ему не приходят.
+
+Проверка протокола (два клиента, маскировка, кик, реконнект):
+`pnpm qa:realtime` в `web/` (требует запущенных backend и PostgreSQL).
 
 ## Пресеты прав
 
