@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/api/api_client.dart';
 import 'core/auth/session_manager.dart';
 import 'core/models.dart';
+import 'core/realtime/realtime_service.dart';
 import 'core/storage/token_storage.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
@@ -16,6 +17,7 @@ import 'features/profile/profile_screen.dart';
 import 'features/spaces/space_screen.dart';
 import 'features/spaces/spaces_screen.dart';
 import 'features/tokens/tokens_screen.dart';
+import 'shared/global_keys.dart';
 import 'shared/widgets/home_shell.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
@@ -97,6 +99,89 @@ final spacePresetProvider = FutureProvider.family<String?, String>(
     return null;
   },
 );
+
+final realtimeServiceProvider = Provider<RealtimeService>((ref) {
+  final service = RealtimeService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+class RealtimeController extends Notifier<RealtimeStatus> {
+  @override
+  RealtimeStatus build() {
+    final service = ref.watch(realtimeServiceProvider);
+    final user = ref.watch(authControllerProvider).asData?.value;
+
+    final statusSub = service.status.listen((status) => state = status);
+    ref.onDispose(statusSub.cancel);
+
+    final eventSub = service.events.listen(_onEvent);
+    ref.onDispose(eventSub.cancel);
+
+    if (user == null) {
+      service.disconnect();
+    } else {
+      final token = ref.read(sessionManagerProvider).accessToken;
+      if (token != null) {
+        service.connect(token);
+      }
+    }
+    return service.currentStatus;
+  }
+
+  void _onEvent(RealtimeEvent event) {
+    final me = ref.read(authControllerProvider).asData?.value?.id;
+    final name = event.name;
+    if (name.startsWith('event.')) {
+      ref.invalidate(allEventsProvider);
+      _notifyEvent(name, event.payload, me);
+    } else if (name.startsWith('member.') || name == 'token.activated') {
+      ref.invalidate(spacesProvider);
+      ref.invalidate(membersProvider);
+      if (name == 'token.activated') {
+        ref.invalidate(tokensProvider);
+      }
+      _notifyMember(name, event.payload, me);
+    }
+  }
+
+  void _notifyEvent(String name, Map<String, dynamic> payload, String? me) {
+    final data = payload['event'];
+    final map = data is Map ? data : const <String, dynamic>{};
+    if (map['creator_id'] == me) {
+      return;
+    }
+    switch (name) {
+      case 'event.created':
+        _snack('Новое событие: ${map['title'] ?? ''}');
+      case 'event.updated':
+        _snack('Событие обновлено');
+      case 'event.deleted':
+        _snack('Событие удалено');
+    }
+  }
+
+  void _notifyMember(String name, Map<String, dynamic> payload, String? me) {
+    if (name == 'member.kicked') {
+      _snack(
+        payload['user_id'] == me
+            ? 'Доступ к пространству отозван'
+            : 'Участник удалён из пространства',
+      );
+    } else if (name == 'token.activated' && payload['user_id'] != me) {
+      _snack('Новый участник присоединился');
+    }
+  }
+
+  void _snack(String message) {
+    scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
+
+final realtimeStatusProvider =
+    NotifierProvider<RealtimeController, RealtimeStatus>(RealtimeController.new);
 
 class _RouterRefresh extends ChangeNotifier {
   void notify() => notifyListeners();

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app.dart';
 import '../../core/models.dart';
 import '../../shared/hex_color.dart';
+import '../../shared/widgets/realtime_indicator.dart';
 import '../events/event_form_sheet.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
@@ -60,7 +61,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         spaceSources.any((s) => s.id == _sourceFilter);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Календарь')),
+      appBar: AppBar(
+        title: const Text('Календарь'),
+        actions: const [RealtimeIndicator()],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _addEvent(context, sources, canCreate),
         child: const Icon(Icons.add),
