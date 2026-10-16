@@ -1,16 +1,20 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppLayout } from '@/layouts/AppLayout';
 
 describe('AppLayout', () => {
   it('renders brand, navigation and content', () => {
+    const queryClient = new QueryClient();
     render(
-      <MemoryRouter>
-        <AppLayout>
-          <div>Тестовый контент</div>
-        </AppLayout>
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AppLayout>
+            <div>Тестовый контент</div>
+          </AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByText('Плетение')).toBeInTheDocument();

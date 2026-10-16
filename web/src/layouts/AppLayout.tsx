@@ -15,7 +15,10 @@ import {
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/auth';
 import { logoutRequest } from '@/lib/services';
+import { useRealtime } from '@/hooks/useRealtime';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ConnectionIndicator } from '@/components/ConnectionIndicator';
+import { Toaster } from '@/components/Toaster';
 
 const navItems = [
   { to: '/', label: 'Пространства', icon: LayoutGrid, end: true },
@@ -67,6 +70,8 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const clear = useAuthStore((s) => s.clear);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  useRealtime();
+
   const onLogout = async () => {
     if (refreshToken) {
       await logoutRequest(refreshToken).catch(() => undefined);
@@ -111,6 +116,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           </span>
         </div>
         <div className="flex items-center gap-2 sm:gap-4 text-sm">
+          <ConnectionIndicator />
           <span className="hidden text-muted sm:inline">
             {user?.name ?? user?.email}
           </span>
@@ -147,6 +153,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           {children ?? <Outlet />}
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }
