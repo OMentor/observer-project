@@ -71,6 +71,24 @@ export type EventHistoryEntry = {
   user: { id: string; name: string };
 };
 
+export type EventPage = {
+  items: CalendarEvent[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type EventQuery = {
+  space_id?: string;
+  source_id?: string;
+  creator_id?: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type Token = {
   id: string;
   space_id: string;

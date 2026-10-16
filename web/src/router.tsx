@@ -10,7 +10,8 @@ import { TokensPage } from '@/pages/TokensPage';
 import { MembersPage } from '@/pages/MembersPage';
 import { HistoryPage } from '@/pages/HistoryPage';
 import { ActivatePage } from '@/pages/ActivatePage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { ProfilePage } from '@/pages/ProfilePage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -31,24 +32,8 @@ export const router = createBrowserRouter([
       { path: 'members', element: <MembersPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'activate/:token', element: <ActivatePage /> },
-      {
-        path: 'settings',
-        element: (
-          <PlaceholderPage
-            title="Настройки"
-            description="Настройки пространств появятся на этапе 3."
-          />
-        ),
-      },
-      {
-        path: 'profile',
-        element: (
-          <PlaceholderPage
-            title="Профиль"
-            description="Настройки профиля и подключения появятся позже."
-          />
-        ),
-      },
+      { path: 'settings', element: <SettingsPage /> },
+      { path: 'profile', element: <ProfilePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowLeft, KeyRound, Plus, Users } from 'lucide-react';
 import { createSource, fetchSpace } from '@/lib/services';
 import { cn } from '@/lib/cn';
+import { PALETTE } from '@/lib/palette';
 import { PRESET_LABELS } from '@/lib/presets';
 import { useSpaceAccess } from '@/hooks/access';
 import { Button } from '@/components/ui/button';
@@ -15,15 +16,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-
-const PALETTE = [
-  '#5B5FEF',
-  '#F0A030',
-  '#34C77B',
-  '#E05C4A',
-  '#8B5CF6',
-  '#0EA5E9',
-];
 
 export function SpacePage() {
   const { id = '' } = useParams();

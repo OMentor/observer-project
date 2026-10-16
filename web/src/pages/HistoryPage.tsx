@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { fetchEventHistory, fetchEvents, fetchSpaces } from '@/lib/services';
 import type { CalendarEvent, EventHistoryEntry, Source } from '@/lib/types';
+import { Input } from '@/components/ui/input';
 
 const ACTION_LABELS: Record<EventHistoryEntry['action'], string> = {
   CREATED: 'Создано',
@@ -46,6 +47,18 @@ export function HistoryPage() {
   );
 
   const [selectedId, setSelectedId] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [actionFilter, setActionFilter] = useState<
+    '' | EventHistoryEntry['action']
+  >('');
+
+  const filteredEvents = events.filter(
+    (event) =>
+      (!sourceFilter || event.source_id === sourceFilter) &&
+      (!search || event.title.toLowerCase().includes(search.toLowerCase())),
+  );
+
   const selected = events.find((event) => event.id === selectedId);
 
   const { data: history = [], isLoading } = useQuery({
@@ -53,6 +66,10 @@ export function HistoryPage() {
     queryFn: () => fetchEventHistory(selectedId),
     enabled: Boolean(selectedId) && !selected?.busy,
   });
+
+  const visibleHistory = actionFilter
+    ? history.filter((entry) => entry.action === actionFilter)
+    : history;
 
   return (
     <section className="space-y-6">
@@ -69,27 +86,57 @@ export function HistoryPage() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          <div className="space-y-2">
-            <label
-              htmlFor="history-event"
-              className="text-sm font-medium text-muted"
-            >
-              Событие
-            </label>
-            <select
-              id="history-event"
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
-            >
-              <option value="">— выберите событие —</option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id} disabled={event.busy}>
-                  {event.title} · {formatDate(event.start_at)}
-                  {event.busy ? ' (занято)' : ''}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label
+                htmlFor="history-source"
+                className="text-sm font-medium text-muted"
+              >
+                Источник
+              </label>
+              <select
+                id="history-source"
+                value={sourceFilter}
+                onChange={(event) => setSourceFilter(event.target.value)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="">Все источники</option>
+                {sources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Поиск по названию"
+            />
+
+            <div className="space-y-1">
+              <label
+                htmlFor="history-event"
+                className="text-sm font-medium text-muted"
+              >
+                Событие
+              </label>
+              <select
+                id="history-event"
+                value={selectedId}
+                onChange={(event) => setSelectedId(event.target.value)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="">— выберите событие —</option>
+                {filteredEvents.map((event) => (
+                  <option key={event.id} value={event.id} disabled={event.busy}>
+                    {event.title} · {formatDate(event.start_at)}
+                    {event.busy ? ' (занято)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -104,27 +151,64 @@ export function HistoryPage() {
                 История пуста.
               </div>
             ) : (
-              <ol className="space-y-2">
-                {history.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="rounded-xl border border-border bg-surface px-4 py-3"
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActionFilter('')}
+                    className={
+                      actionFilter === ''
+                        ? 'rounded-full bg-accent/15 px-3 py-1 text-xs text-accent'
+                        : 'rounded-full px-3 py-1 text-xs text-muted hover:bg-surface'
+                    }
                   >
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-text">
-                        {ACTION_LABELS[entry.action]}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {formatDate(entry.created_at)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted">
-                      {entry.user.name}
-                      {diff(entry) && ` · ${diff(entry)}`}
-                    </p>
-                  </li>
-                ))}
-              </ol>
+                    Все
+                  </button>
+                  {(
+                    Object.keys(ACTION_LABELS) as EventHistoryEntry['action'][]
+                  ).map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      onClick={() => setActionFilter(action)}
+                      className={
+                        actionFilter === action
+                          ? 'rounded-full bg-accent/15 px-3 py-1 text-xs text-accent'
+                          : 'rounded-full px-3 py-1 text-xs text-muted hover:bg-surface'
+                      }
+                    >
+                      {ACTION_LABELS[action]}
+                    </button>
+                  ))}
+                </div>
+                {visibleHistory.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+                    Нет записей с этим действием.
+                  </div>
+                ) : (
+                  <ol className="space-y-2">
+                    {visibleHistory.map((entry) => (
+                      <li
+                        key={entry.id}
+                        className="rounded-xl border border-border bg-surface px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-text">
+                            {ACTION_LABELS[entry.action]}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {formatDate(entry.created_at)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">
+                          {entry.user.name}
+                          {diff(entry) && ` · ${diff(entry)}`}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
             )}
           </div>
         </div>

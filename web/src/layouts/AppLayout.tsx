@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
@@ -6,13 +6,16 @@ import {
   KeyRound,
   LayoutGrid,
   LogOut,
+  Menu,
   Settings,
   Users,
   UserRound,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/auth';
 import { logoutRequest } from '@/lib/services';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const navItems = [
   { to: '/', label: 'Пространства', icon: LayoutGrid, end: true },
@@ -29,16 +32,19 @@ function NavItem({
   label,
   icon: Icon,
   end,
+  onClick,
 }: {
   to: string;
   label: string;
   icon: typeof CalendarDays;
   end?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={onClick}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -59,6 +65,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clear = useAuthStore((s) => s.clear);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const onLogout = async () => {
     if (refreshToken) {
@@ -68,10 +75,34 @@ export function AppLayout({ children }: { children?: ReactNode }) {
     navigate('/login', { replace: true });
   };
 
+  const sidebar = (
+    <nav className="flex flex-col gap-1">
+      {navItems.map((item) => (
+        <NavItem
+          key={item.to}
+          {...item}
+          onClick={() => setMenuOpen(false)}
+        />
+      ))}
+    </nav>
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-6">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 sm:px-6">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Меню"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text lg:hidden"
+          >
+            {menuOpen ? (
+              <X className="size-5" />
+            ) : (
+              <Menu className="size-5" />
+            )}
+          </button>
           <span className="font-serif text-xl tracking-tight text-text">
             Плетение
           </span>
@@ -79,27 +110,40 @@ export function AppLayout({ children }: { children?: ReactNode }) {
             UI-бета
           </span>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted">{user?.name ?? user?.email}</span>
+        <div className="flex items-center gap-2 sm:gap-4 text-sm">
+          <span className="hidden text-muted sm:inline">
+            {user?.name ?? user?.email}
+          </span>
+          <ThemeToggle />
           <button
             type="button"
             onClick={onLogout}
             className="inline-flex items-center gap-1 text-muted transition-colors hover:text-conflict"
           >
             <LogOut className="size-4" />
-            Выйти
+            <span className="hidden sm:inline">Выйти</span>
           </button>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-60 shrink-0 border-r border-border bg-surface/50 p-3">
-          <nav className="flex flex-col gap-1">
-            {navItems.map((item) => (
-              <NavItem key={item.to} {...item} />
-            ))}
-          </nav>
+      <div className="relative flex min-h-0 flex-1">
+        <aside className="hidden w-60 shrink-0 border-r border-border bg-surface/50 p-3 lg:block">
+          {sidebar}
         </aside>
-        <main className="min-w-0 flex-1 overflow-auto p-6">
+        {menuOpen && (
+          <>
+            <div
+              className="fixed inset-0 top-14 z-20 bg-black/40 lg:hidden"
+              onClick={() => setMenuOpen(false)}
+              aria-hidden
+            />
+            <aside
+              className="fixed bottom-0 left-0 top-14 z-30 w-60 border-r border-border bg-surface p-3 lg:hidden"
+            >
+              {sidebar}
+            </aside>
+          </>
+        )}
+        <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6">
           {children ?? <Outlet />}
         </main>
       </div>

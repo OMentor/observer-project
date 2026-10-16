@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createEvent,
+  deleteEvent,
   fetchEventHistory,
   updateEvent,
 } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
 import type { CalendarEvent, EventHistoryEntry, Source } from '@/lib/types';
+import { eventFormSchema, type EventFormValues } from '@/lib/event-schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,23 +43,12 @@ function today(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-type FormValues = {
-  title: string;
-  sourceId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  allDay: boolean;
-  location: string;
-  description: string;
-};
-
-function initialForm(
+function initialValues(
   event: CalendarEvent | null | undefined,
   sources: Source[],
   defaultSourceId: string | undefined,
   defaultDate: string | null | undefined,
-): FormValues {
+): EventFormValues {
   if (event) {
     const start = toParts(event.start_at);
     const end = toParts(event.end_at);
@@ -89,19 +81,28 @@ function EventForm({
   event,
   defaultSourceId,
   defaultDate,
+  canDelete,
 }: {
   onOpenChange: (open: boolean) => void;
   sources: Source[];
   event?: CalendarEvent | null;
   defaultSourceId?: string;
   defaultDate?: string | null;
+  canDelete?: boolean;
 }) {
   const queryClient = useQueryClient();
   const timezone = useAuthStore((s) => s.user?.timezone ?? 'UTC');
-  const [form, setForm] = useState<FormValues>(() =>
-    initialForm(event, sources, defaultSourceId, defaultDate),
-  );
-  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<EventFormValues>({
+    resolver: zodResolver(eventFormSchema),
+    defaultValues: initialValues(event, sources, defaultSourceId, defaultDate),
+  });
+
+  const allDay = useWatch({ control, name: 'allDay' });
 
   const { data: history = [] } = useQuery({
     queryKey: ['history', event?.id],
@@ -110,44 +111,42 @@ function EventForm({
   });
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: EventFormValues) => {
       const startAt = new Date(
-        `${form.date}T${form.allDay ? '00:00' : form.startTime}`,
+        `${values.date}T${values.allDay ? '00:00' : values.startTime}`,
       );
       const endAt = new Date(
-        `${form.date}T${form.allDay ? '23:59' : form.endTime}`,
+        `${values.date}T${values.allDay ? '23:59' : values.endTime}`,
       );
-      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-        throw new Error('Некорректная дата');
-      }
-      if (!form.allDay && endAt <= startAt) {
-        throw new Error('Время окончания раньше начала');
-      }
       const payload = {
-        title: form.title.trim(),
+        title: values.title.trim(),
         start_at: startAt.toISOString(),
         end_at: endAt.toISOString(),
-        all_day: form.allDay,
+        all_day: values.allDay,
         timezone,
-        location: form.location.trim() || null,
-        description: form.description.trim() || null,
+        location: values.location.trim() || null,
+        description: values.description.trim() || null,
       };
       if (event) {
         return updateEvent(event.id, payload);
       }
-      return createEvent(form.sourceId, payload);
+      return createEvent(values.sourceId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['event-page'] });
       onOpenChange(false);
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Не удалось сохранить');
     },
   });
 
-  const update = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const removeMutation = useMutation({
+    mutationFn: () => deleteEvent(event?.id as string),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['event-page'] });
+      onOpenChange(false);
+    },
+  });
 
   return (
     <>
@@ -158,38 +157,23 @@ function EventForm({
 
       <form
         className="mt-4 space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setError(null);
-          if (!form.title.trim()) {
-            setError('Введите название');
-            return;
-          }
-          if (!form.sourceId) {
-            setError('Выберите источник');
-            return;
-          }
-          mutation.mutate();
-        }}
+        onSubmit={handleSubmit((values) => mutation.mutate(values))}
       >
         <div className="space-y-1">
           <Label htmlFor="event-title">Название</Label>
-          <Input
-            id="event-title"
-            value={form.title}
-            onChange={(e) => update('title', e.target.value)}
-            autoFocus
-          />
+          <Input id="event-title" autoFocus {...register('title')} />
+          {errors.title && (
+            <p className="text-xs text-conflict">{errors.title.message}</p>
+          )}
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="event-source">Источник</Label>
           <select
             id="event-source"
-            value={form.sourceId}
-            onChange={(e) => update('sourceId', e.target.value)}
             disabled={Boolean(event)}
             className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-60"
+            {...register('sourceId')}
           >
             {sources.map((source) => (
               <option key={source.id} value={source.id}>
@@ -197,69 +181,57 @@ function EventForm({
               </option>
             ))}
           </select>
+          {errors.sourceId && (
+            <p className="text-xs text-conflict">{errors.sourceId.message}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="event-date">Дата</Label>
-            <Input
-              id="event-date"
-              type="date"
-              value={form.date}
-              onChange={(e) => update('date', e.target.value)}
-            />
+            <Input id="event-date" type="date" {...register('date')} />
+            {errors.date && (
+              <p className="text-xs text-conflict">{errors.date.message}</p>
+            )}
           </div>
           <label className="flex items-end gap-2 pb-2 text-sm text-muted">
             <input
               type="checkbox"
-              checked={form.allDay}
-              onChange={(e) => update('allDay', e.target.checked)}
               className="size-4 accent-[var(--accent)]"
+              {...register('allDay')}
             />
             Весь день
           </label>
         </div>
 
-        {!form.allDay && (
+        {!allDay && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="event-start">Начало</Label>
-              <Input
-                id="event-start"
-                type="time"
-                value={form.startTime}
-                onChange={(e) => update('startTime', e.target.value)}
-              />
+              <Input id="event-start" type="time" {...register('startTime')} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="event-end">Окончание</Label>
-              <Input
-                id="event-end"
-                type="time"
-                value={form.endTime}
-                onChange={(e) => update('endTime', e.target.value)}
-              />
+              <Input id="event-end" type="time" {...register('endTime')} />
+              {errors.endTime && (
+                <p className="text-xs text-conflict">{errors.endTime.message}</p>
+              )}
             </div>
           </div>
         )}
 
         <div className="space-y-1">
           <Label htmlFor="event-location">Место</Label>
-          <Input
-            id="event-location"
-            value={form.location}
-            onChange={(e) => update('location', e.target.value)}
-          />
+          <Input id="event-location" {...register('location')} />
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="event-description">Описание</Label>
           <textarea
             id="event-description"
-            value={form.description}
-            onChange={(e) => update('description', e.target.value)}
             rows={3}
             className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+            {...register('description')}
           />
         </div>
 
@@ -275,16 +247,33 @@ function EventForm({
                   <span>
                     {ACTION_LABELS[entry.action]} · {entry.user.name}
                   </span>
-                  <span>{new Date(entry.created_at).toLocaleString('ru-RU')}</span>
+                  <span>
+                    {new Date(entry.created_at).toLocaleString('ru-RU')}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {error && <p className="text-xs text-conflict">{error}</p>}
+        {(mutation.isError || removeMutation.isError) && (
+          <p className="text-xs text-conflict">
+            Не удалось сохранить изменения
+          </p>
+        )}
 
         <div className="flex justify-end gap-2">
+          {event && canDelete && (
+            <Button
+              type="button"
+              variant="danger"
+              className="mr-auto"
+              disabled={removeMutation.isPending}
+              onClick={() => removeMutation.mutate()}
+            >
+              Удалить
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -292,7 +281,7 @@ function EventForm({
           >
             Отмена
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" disabled={isSubmitting || mutation.isPending}>
             {event ? 'Сохранить' : 'Создать'}
           </Button>
         </div>
@@ -308,6 +297,7 @@ export function EventDialog({
   event,
   defaultSourceId,
   defaultDate,
+  canDelete,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -315,6 +305,7 @@ export function EventDialog({
   event?: CalendarEvent | null;
   defaultSourceId?: string;
   defaultDate?: string | null;
+  canDelete?: boolean;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -326,6 +317,7 @@ export function EventDialog({
           event={event}
           defaultSourceId={defaultSourceId}
           defaultDate={defaultDate}
+          canDelete={canDelete}
         />
       </DialogContent>
     </Dialog>

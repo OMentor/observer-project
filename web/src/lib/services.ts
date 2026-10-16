@@ -3,7 +3,9 @@ import type {
   AuthResponse,
   CalendarEvent,
   EventHistoryEntry,
+  EventPage,
   EventPayload,
+  EventQuery,
   Member,
   Preset,
   Space,
@@ -72,10 +74,27 @@ export async function deleteSource(id: string) {
   await api.delete(`/sources/${id}`);
 }
 
+export async function updateSource(
+  id: string,
+  payload: {
+    name?: string;
+    color?: string;
+    visibility?: 'SHARED' | 'PRIVATE';
+  },
+) {
+  const { data } = await api.patch<Source>(`/sources/${id}`, payload);
+  return data;
+}
+
 export async function fetchEvents(sourceId: string) {
   const { data } = await api.get<CalendarEvent[]>(
     `/sources/${sourceId}/events`,
   );
+  return data;
+}
+
+export async function fetchEventPage(params: EventQuery) {
+  const { data } = await api.get<EventPage>('/events', { params });
   return data;
 }
 

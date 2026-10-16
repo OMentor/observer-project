@@ -31,18 +31,31 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString('ru-RU');
 }
 
-function tokenStatus(token: Token): { label: string; tone: string } {
+type TokenStatusKey = 'active' | 'used' | 'expired' | 'revoked';
+
+function tokenStatus(token: Token): {
+  key: TokenStatusKey;
+  label: string;
+  tone: string;
+} {
   if (token.revoked_at) {
-    return { label: 'Отозван', tone: 'text-conflict' };
+    return { key: 'revoked', label: 'Отозван', tone: 'text-conflict' };
   }
   if (token.used_at) {
-    return { label: 'Использован', tone: 'text-muted' };
+    return { key: 'used', label: 'Использован', tone: 'text-muted' };
   }
   if (token.expires_at && new Date(token.expires_at).getTime() < Date.now()) {
-    return { label: 'Истёк', tone: 'text-muted' };
+    return { key: 'expired', label: 'Истёк', tone: 'text-muted' };
   }
-  return { label: 'Активен', tone: 'text-accent' };
+  return { key: 'active', label: 'Активен', tone: 'text-accent' };
 }
+
+const STATUS_LABELS: Record<TokenStatusKey, string> = {
+  active: 'Активные',
+  used: 'Использованные',
+  expired: 'Истёкшие',
+  revoked: 'Отозванные',
+};
 
 export function TokensPage() {
   const queryClient = useQueryClient();
@@ -69,9 +82,35 @@ export function TokensPage() {
   const [issued, setIssued] = useState<Token[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const activeTokens = useMemo(
-    () => tokens.filter((token) => !token.revoked_at),
-    [tokens],
+  const [statusFilter, setStatusFilter] = useState<'all' | TokenStatusKey>(
+    'active',
+  );
+  const [presetFilter, setPresetFilter] = useState<'' | Preset>('');
+  const [creatorSearch, setCreatorSearch] = useState('');
+
+  const filtersActive =
+    statusFilter !== 'active' || Boolean(presetFilter) || Boolean(creatorSearch);
+
+  const filteredTokens = useMemo(
+    () =>
+      tokens.filter((token) => {
+        if (presetFilter && token.preset !== presetFilter) {
+          return false;
+        }
+        if (
+          creatorSearch &&
+          !(token.creator?.name ?? '')
+            .toLowerCase()
+            .includes(creatorSearch.toLowerCase())
+        ) {
+          return false;
+        }
+        if (statusFilter !== 'all' && tokenStatus(token).key !== statusFilter) {
+          return false;
+        }
+        return true;
+      }),
+    [tokens, presetFilter, creatorSearch, statusFilter],
   );
 
   const createMutation = useMutation({
@@ -187,15 +226,74 @@ export function TokensPage() {
         </div>
       )}
 
+      {isFull && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3">
+          <select
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as 'all' | TokenStatusKey)
+            }
+            className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          >
+            <option value="all">Все статусы</option>
+            {(Object.keys(STATUS_LABELS) as TokenStatusKey[]).map((key) => (
+              <option key={key} value={key}>
+                {STATUS_LABELS[key]}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={presetFilter}
+            onChange={(e) => setPresetFilter(e.target.value as '' | Preset)}
+            className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          >
+            <option value="">Все пресеты</option>
+            {PRESETS.map((item) => (
+              <option key={item} value={item}>
+                {PRESET_LABELS[item]}
+              </option>
+            ))}
+          </select>
+
+          <Input
+            value={creatorSearch}
+            onChange={(e) => setCreatorSearch(e.target.value)}
+            placeholder="Поиск по автору"
+            className="max-w-xs flex-1"
+          />
+
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStatusFilter('active');
+                setPresetFilter('');
+                setCreatorSearch('');
+              }}
+            >
+              Сбросить
+            </Button>
+          )}
+
+          <span className="text-xs text-muted">
+            Найдено: {filteredTokens.length}
+          </span>
+        </div>
+      )}
+
       {isFull &&
         (isLoading ? (
           <p className="text-sm text-muted">Загрузка…</p>
-        ) : activeTokens.length === 0 ? (
+        ) : filteredTokens.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
-            Активных токенов нет.
+            {filtersActive
+              ? 'Нет токенов по заданным фильтрам.'
+              : 'Активных токенов нет.'}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">
               <thead className="bg-surface text-left text-xs text-muted">
                 <tr>
@@ -208,7 +306,7 @@ export function TokensPage() {
                 </tr>
               </thead>
               <tbody>
-                {activeTokens.map((token) => {
+                {filteredTokens.map((token) => {
                   const status = tokenStatus(token);
                   return (
                     <tr key={token.id} className="border-t border-border">
@@ -228,14 +326,16 @@ export function TokensPage() {
                         {status.label}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => revokeMutation.mutate(token.id)}
-                          className="inline-flex items-center gap-1 text-xs text-muted hover:text-conflict"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Отозвать
-                        </button>
+                        {!token.revoked_at && (
+                          <button
+                            type="button"
+                            onClick={() => revokeMutation.mutate(token.id)}
+                            className="inline-flex items-center gap-1 text-xs text-muted hover:text-conflict"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Отозвать
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
