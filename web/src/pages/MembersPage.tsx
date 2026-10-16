@@ -12,6 +12,9 @@ import type { Preset } from '@/lib/types';
 import { PRESETS, PRESET_LABELS } from '@/lib/presets';
 import { useSpaceAccess } from '@/hooks/access';
 import { SpacePicker } from '@/components/SpacePicker';
+import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function MembersPage() {
   const queryClient = useQueryClient();
@@ -46,16 +49,18 @@ export function MembersPage() {
   });
 
   if (spacesLoading) {
-    return <p className="text-sm text-muted">Загрузка…</p>;
+    return <p className="text-body-sm text-text-secondary">Загрузка…</p>;
   }
 
   if (spaces.length === 0) {
     return (
       <section className="space-y-4">
-        <h1 className="font-serif text-3xl text-text">Участники</h1>
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
-          Сначала создайте пространство.
-        </div>
+        <h1 className="font-serif text-h1 text-text-primary">Участники</h1>
+        <EmptyState
+          icon={<UserMinus className="size-5" />}
+          title="Нет пространств"
+          description="Сначала создайте пространство, чтобы приглашать участников."
+        />
       </section>
     );
   }
@@ -64,8 +69,8 @@ export function MembersPage() {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl text-text">Участники</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="font-serif text-h1 text-text-primary">Участники</h1>
+          <p className="mt-1 text-body-sm text-text-secondary">
             Пресеты определяют, что доступно участнику.
           </p>
         </div>
@@ -77,11 +82,11 @@ export function MembersPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted">Загрузка…</p>
+        <p className="text-body-sm text-text-secondary">Загрузка…</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-surface text-left text-xs text-muted">
+            <thead className="bg-bg-surface text-left text-caption text-text-muted">
               <tr>
                 <th className="px-4 py-2 font-medium">Участник</th>
                 <th className="px-4 py-2 font-medium">Email</th>
@@ -97,9 +102,9 @@ export function MembersPage() {
                     <td className="px-4 py-2 text-text">
                       {member.user.name}
                       {isOwner && (
-                        <span className="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
+                        <Badge tone="accent" className="ml-2">
                           Владелец
-                        </span>
+                        </Badge>
                       )}
                     </td>
                     <td className="px-4 py-2 text-muted">
@@ -107,7 +112,8 @@ export function MembersPage() {
                     </td>
                     <td className="px-4 py-2">
                       {isFull && !isOwner ? (
-                        <select
+                        <Select
+                          containerClassName="w-40"
                           value={member.preset}
                           onChange={(event) =>
                             updateMutation.mutate({
@@ -115,14 +121,13 @@ export function MembersPage() {
                               preset: event.target.value as Preset,
                             })
                           }
-                          className="rounded-lg border border-border bg-bg px-2 py-1 text-sm text-text outline-none focus:border-accent"
                         >
                           {PRESETS.map((item) => (
                             <option key={item} value={item}>
                               {PRESET_LABELS[item]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         <span className="text-muted">
                           {PRESET_LABELS[member.preset]}
@@ -134,7 +139,7 @@ export function MembersPage() {
                         <button
                           type="button"
                           onClick={() => kickMutation.mutate(member.id)}
-                          className="inline-flex items-center gap-1 text-xs text-muted hover:text-conflict"
+                          className="inline-flex items-center gap-1 text-caption text-text-muted hover:text-danger"
                         >
                           <UserMinus className="size-3.5" />
                           Исключить

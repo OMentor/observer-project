@@ -25,10 +25,10 @@ export function ProfilePage() {
 
   return (
     <section className="max-w-3xl space-y-6">
-      <h1 className="font-serif text-3xl text-text">Профиль</h1>
+      <h1 className="font-serif text-h1 text-text-primary">Профиль</h1>
 
-      <div className="space-y-4 rounded-xl border border-border bg-surface p-5">
-        <h2 className="font-serif text-xl text-text">Аккаунт</h2>
+      <div className="space-y-4 rounded-lg bg-bg-surface p-5 shadow-card">
+        <h2 className="font-serif text-h3 text-text-primary">Аккаунт</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <Label>Имя</Label>
@@ -50,13 +50,13 @@ export function ProfilePage() {
             <Input value={user?.timezone ?? 'UTC'} disabled />
           </div>
         </div>
-        <p className="text-xs text-muted">
+        <p className="text-caption text-text-muted">
           Редактирование аккаунта появится позже.
         </p>
       </div>
 
-      <div className="space-y-4 rounded-xl border border-border bg-surface p-5">
-        <h2 className="font-serif text-xl text-text">Оформление</h2>
+      <div className="space-y-4 rounded-lg bg-bg-surface p-5 shadow-card">
+        <h2 className="font-serif text-h3 text-text-primary">Оформление</h2>
         <div className="flex gap-2">
           <button
             type="button"
@@ -89,12 +89,12 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="space-y-4 rounded-xl border border-border bg-surface p-5">
+      <div className="space-y-4 rounded-lg bg-bg-surface p-5 shadow-card">
         <div>
-          <h2 className="font-serif text-xl text-text">
+          <h2 className="font-serif text-h3 text-text-primary">
             Внешние подключения
           </h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-body-sm text-text-secondary">
             Синхронизация календарей появится на следующем этапе.
           </p>
         </div>
@@ -105,8 +105,8 @@ export function ProfilePage() {
               className="flex items-center gap-3 rounded-lg border border-border px-4 py-3"
             >
               <Cloud className="size-4 text-muted" />
-              <span className="text-sm text-text">{provider.label}</span>
-              <span className="ml-auto rounded-full bg-bg px-2 py-0.5 text-xs text-muted">
+              <span className="text-body text-text-primary">{provider.label}</span>
+              <span className="ml-auto rounded-full bg-bg px-2 py-0.5 text-caption text-text-muted">
                 Скоро
               </span>
               <Button size="sm" variant="outline" disabled>
@@ -136,10 +136,10 @@ function ActivateCard() {
   });
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-surface p-5">
+    <div className="space-y-4 rounded-lg bg-bg-surface p-5 shadow-card">
       <div>
-        <h2 className="font-serif text-xl text-text">Активация токена</h2>
-        <p className="mt-1 text-sm text-muted">
+        <h2 className="font-serif text-h3 text-text-primary">Активация токена</h2>
+        <p className="mt-1 text-body-sm text-text-secondary">
           Введите токен доступа, чтобы присоединиться к пространству.
         </p>
       </div>
@@ -159,7 +159,7 @@ function ActivateCard() {
           Активировать
         </Button>
       </div>
-      {result && <p className="text-sm text-muted">{result}</p>}
+      {result && <p className="text-body-sm text-text-secondary">{result}</p>}
       <div className="grid gap-2 sm:grid-cols-2">
         {PRESETS.map((preset) => (
           <div

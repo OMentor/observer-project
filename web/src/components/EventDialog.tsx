@@ -1,4 +1,4 @@
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,6 +13,10 @@ import { eventFormSchema, type EventFormValues } from '@/lib/event-schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -156,23 +160,28 @@ function EventForm({
       </DialogDescription>
 
       <form
-        className="mt-4 space-y-4"
+        className="mt-6 space-y-5"
         onSubmit={handleSubmit((values) => mutation.mutate(values))}
       >
-        <div className="space-y-1">
-          <Label htmlFor="event-title">Название</Label>
-          <Input id="event-title" autoFocus {...register('title')} />
-          {errors.title && (
-            <p className="text-xs text-conflict">{errors.title.message}</p>
-          )}
-        </div>
+        <Field label="Название" htmlFor="event-title" error={errors.title?.message}>
+          <Input
+            id="event-title"
+            autoFocus
+            placeholder="Встреча с командой"
+            error={Boolean(errors.title)}
+            {...register('title')}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <Label htmlFor="event-source">Источник</Label>
-          <select
+        <Field
+          label="Источник"
+          htmlFor="event-source"
+          error={errors.sourceId?.message}
+        >
+          <Select
             id="event-source"
             disabled={Boolean(event)}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-60"
+            error={Boolean(errors.sourceId)}
             {...register('sourceId')}
           >
             {sources.map((source) => (
@@ -180,60 +189,70 @@ function EventForm({
                 {source.name}
               </option>
             ))}
-          </select>
-          {errors.sourceId && (
-            <p className="text-xs text-conflict">{errors.sourceId.message}</p>
-          )}
-        </div>
+          </Select>
+        </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="event-date">Дата</Label>
-            <Input id="event-date" type="date" {...register('date')} />
-            {errors.date && (
-              <p className="text-xs text-conflict">{errors.date.message}</p>
-            )}
-          </div>
-          <label className="flex items-end gap-2 pb-2 text-sm text-muted">
-            <input
-              type="checkbox"
-              className="size-4 accent-[var(--accent)]"
-              {...register('allDay')}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Дата" htmlFor="event-date" error={errors.date?.message}>
+            <Input
+              id="event-date"
+              type="date"
+              error={Boolean(errors.date)}
+              {...register('date')}
             />
-            Весь день
-          </label>
+          </Field>
+          <div className="flex items-center justify-between self-end pb-2.5">
+            <Label htmlFor="event-allday">Весь день</Label>
+            <Controller
+              control={control}
+              name="allDay"
+              render={({ field }) => (
+                <Switch
+                  id="event-allday"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+          </div>
         </div>
 
         {!allDay && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="event-start">Начало</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Начало" htmlFor="event-start">
               <Input id="event-start" type="time" {...register('startTime')} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="event-end">Окончание</Label>
-              <Input id="event-end" type="time" {...register('endTime')} />
-              {errors.endTime && (
-                <p className="text-xs text-conflict">{errors.endTime.message}</p>
-              )}
-            </div>
+            </Field>
+            <Field
+              label="Окончание"
+              htmlFor="event-end"
+              error={errors.endTime?.message}
+            >
+              <Input
+                id="event-end"
+                type="time"
+                error={Boolean(errors.endTime)}
+                {...register('endTime')}
+              />
+            </Field>
           </div>
         )}
 
-        <div className="space-y-1">
-          <Label htmlFor="event-location">Место</Label>
-          <Input id="event-location" {...register('location')} />
-        </div>
+        <Field label="Место" htmlFor="event-location">
+          <Input
+            id="event-location"
+            placeholder="Офис, Zoom, адрес…"
+            {...register('location')}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <Label htmlFor="event-description">Описание</Label>
-          <textarea
+        <Field label="Описание" htmlFor="event-description">
+          <Textarea
             id="event-description"
             rows={3}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+            placeholder="Добавьте детали…"
             {...register('description')}
           />
-        </div>
+        </Field>
 
         {event && history.length > 0 && (
           <div className="space-y-2 border-t border-border pt-4">
@@ -242,7 +261,7 @@ function EventForm({
               {history.map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-center justify-between text-xs text-muted"
+                  className="flex items-center justify-between text-caption text-text-muted"
                 >
                   <span>
                     {ACTION_LABELS[entry.action]} · {entry.user.name}
@@ -257,33 +276,38 @@ function EventForm({
         )}
 
         {(mutation.isError || removeMutation.isError) && (
-          <p className="text-xs text-conflict">
+          <p className="text-caption text-danger">
             Не удалось сохранить изменения
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center gap-3 pt-2">
           {event && canDelete && (
             <Button
               type="button"
               variant="danger"
-              className="mr-auto"
+              size="sm"
               disabled={removeMutation.isPending}
               onClick={() => removeMutation.mutate()}
             >
               Удалить
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-          >
-            Отмена
-          </Button>
-          <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-            {event ? 'Сохранить' : 'Создать'}
-          </Button>
+          <div className="ml-auto flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="submit"
+              loading={isSubmitting || mutation.isPending}
+            >
+              {event ? 'Сохранить' : 'Создать'}
+            </Button>
+          </div>
         </div>
       </form>
     </>

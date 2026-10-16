@@ -8,6 +8,7 @@ import type { DateClickArg } from '@fullcalendar/interaction';
 import type {
   EventChangeArg,
   EventClickArg,
+  EventContentArg,
   EventDropArg,
 } from '@fullcalendar/core';
 import ruLocale from '@fullcalendar/core/locales/ru';
@@ -16,9 +17,31 @@ import { fetchEventPage, fetchSpaces, updateEvent } from '@/lib/services';
 import type { CalendarEvent, EventPayload, Source } from '@/lib/types';
 import { useAccessMap } from '@/hooks/access';
 import { useAuthStore } from '@/store/auth';
+import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { EventDialog } from '@/components/EventDialog';
+
+function renderEventContent(arg: EventContentArg) {
+  const color = (arg.event.backgroundColor as string) ?? 'var(--accent)';
+  return (
+    <div
+      className="h-full overflow-hidden rounded-sm px-2 py-1 text-caption"
+      style={{
+        background: `${color}33`,
+        borderLeft: `3px solid ${color}`,
+      }}
+    >
+      {!arg.event.allDay && (
+        <div className="truncate text-text-muted">{arg.timeText}</div>
+      )}
+      <div className="truncate font-medium text-text-primary">
+        {arg.event.title}
+      </div>
+    </div>
+  );
+}
 
 const BUSY_COLOR = '#8D99AE';
 
@@ -209,11 +232,13 @@ export function CalendarPage() {
   };
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl text-text">Сводный календарь</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="font-serif text-h1 text-text-primary">
+            Сводный календарь
+          </h1>
+          <p className="mt-1 text-body-sm text-text-secondary">
             Все события из пространств и источников в одном окне.
           </p>
         </div>
@@ -226,21 +251,22 @@ export function CalendarPage() {
             Событие
           </Button>
           {sources.length > 0 && !canCreate && (
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-1 text-caption text-text-muted">
               Нет источников, доступных для создания событий.
             </p>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3">
-        <select
+      <div className="flex flex-wrap items-center gap-3 rounded-lg bg-bg-surface p-3 shadow-card">
+        <Select
+          containerClassName="w-[200px]"
           value={spaceFilter}
           onChange={(e) => {
             setSpaceFilter(e.target.value);
             setSourceFilter('');
           }}
-          className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          aria-label="Пространство"
         >
           <option value="">Все пространства</option>
           {spaces.map((space) => (
@@ -248,12 +274,13 @@ export function CalendarPage() {
               {space.name}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
+          containerClassName="w-[200px]"
           value={effectiveSourceFilter}
           onChange={(e) => setSourceFilter(e.target.value)}
-          className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          aria-label="Источник"
         >
           <option value="">Все источники</option>
           {sourceOptions.map((source) => (
@@ -261,15 +288,19 @@ export function CalendarPage() {
               {source.name}
             </option>
           ))}
-        </select>
+        </Select>
 
         <div className="relative min-w-48 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+            aria-hidden
+          />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по названию"
             className="pl-9"
+            aria-label="Поиск по названию"
           />
         </div>
 
@@ -280,44 +311,50 @@ export function CalendarPage() {
           </Button>
         )}
 
-        {isLoading && <span className="text-xs text-muted">Загрузка…</span>}
+        {isLoading && (
+          <span className="text-caption text-text-muted">Загрузка…</span>
+        )}
         {page && (
-          <span className="text-xs text-muted">
+          <span className="text-caption text-text-muted">
             Найдено: {page.total}
           </span>
         )}
       </div>
 
       {sources.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          {sources.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              onClick={() =>
-                setSourceFilter((prev) =>
-                  prev === source.id ? '' : source.id,
-                )
-              }
-              className={
-                effectiveSourceFilter === source.id
-                  ? 'inline-flex items-center gap-2 rounded-full bg-accent/15 px-3 py-1 text-xs text-accent'
-                  : 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-muted hover:bg-surface'
-              }
-            >
-              <span
-                className="size-2.5 rounded-full"
-                style={{ backgroundColor: source.color }}
-              />
-              {source.name}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          {sources.map((source) => {
+            const active = effectiveSourceFilter === source.id;
+            return (
+              <button
+                key={source.id}
+                type="button"
+                onClick={() =>
+                  setSourceFilter((prev) =>
+                    prev === source.id ? '' : source.id,
+                  )
+                }
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-caption transition-colors duration-150',
+                  active
+                    ? 'border-accent bg-accent-muted text-accent'
+                    : 'border-border bg-bg-surface text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
+                )}
+              >
+                <span
+                  className="size-2.5 rounded-full"
+                  style={{ backgroundColor: source.color }}
+                />
+                {source.name}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-surface p-2 sm:p-4">
+      <div className="rounded-lg bg-bg-surface p-2 shadow-card sm:p-4">
         {sources.length === 0 ? (
-          <p className="py-16 text-center text-sm text-muted">
+          <p className="py-16 text-center text-body-sm text-text-secondary">
             Сначала создайте пространство и источник.
           </p>
         ) : (
@@ -341,6 +378,7 @@ export function CalendarPage() {
             firstDay={1}
             editable
             events={calendarEvents}
+            eventContent={renderEventContent}
             datesSet={(info) =>
               setRange((prev) =>
                 prev.from === info.startStr && prev.to === info.endStr

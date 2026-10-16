@@ -16,6 +16,7 @@ import type { Source, Visibility } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { SpacePicker } from '@/components/SpacePicker';
 
 export function SettingsPage() {
@@ -45,8 +46,8 @@ export function SettingsPage() {
   if (spaces.length === 0) {
     return (
       <section className="space-y-4">
-        <h1 className="font-serif text-3xl text-text">Настройки</h1>
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+        <h1 className="font-serif text-h1 text-text-primary">Настройки</h1>
+        <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
           Создайте пространство, чтобы управлять его настройками.
         </div>
       </section>
@@ -56,7 +57,7 @@ export function SettingsPage() {
   return (
     <section className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-serif text-3xl text-text">Настройки пространства</h1>
+        <h1 className="font-serif text-h1 text-text-primary">Настройки пространства</h1>
         <SpacePicker
           spaces={spaces}
           value={selectedSpaceId}
@@ -65,7 +66,7 @@ export function SettingsPage() {
       </div>
 
       {!isFull && (
-        <p className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-muted">
+        <p className="rounded-lg bg-bg-surface px-4 py-2 shadow-card text-body-sm text-text-secondary">
           Изменение доступно только владельцу пространства (пресет «Полный»).
         </p>
       )}
@@ -80,7 +81,7 @@ export function SettingsPage() {
       )}
 
       <div className="space-y-3">
-        <h2 className="font-serif text-xl text-text">Источники</h2>
+        <h2 className="font-serif text-h3 text-text-primary">Источники</h2>
         {space && space.sources && space.sources.length > 0 ? (
           <div className="space-y-2">
             {space.sources.map((source) => (
@@ -92,7 +93,7 @@ export function SettingsPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-border bg-surface/40 p-8 text-center text-sm text-muted">
+          <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-8 text-center text-body-sm text-text-secondary">
             Источников пока нет. Добавьте их на странице пространства.
           </div>
         )}
@@ -122,7 +123,7 @@ function SpaceNameForm({
   });
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-surface p-5">
+    <div className="space-y-4 rounded-lg bg-bg-surface p-5 shadow-card">
       <div className="space-y-1">
         <Label htmlFor="space-name">Название пространства</Label>
         <div className="flex gap-2">
@@ -187,7 +188,7 @@ function SourceRow({
     visibility !== source.visibility;
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
+    <div className="space-y-3 rounded-lg bg-bg-surface p-4 shadow-card">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1.5">
           {PALETTE.map((c) => (
@@ -212,15 +213,15 @@ function SourceRow({
           onChange={(e) => setName(e.target.value)}
           className="max-w-xs flex-1"
         />
-        <select
+        <Select
           value={visibility}
           disabled={!editable}
+          containerClassName="w-36"
           onChange={(e) => setVisibility(e.target.value as Visibility)}
-          className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-60"
         >
           <option value="SHARED">Общий</option>
           <option value="PRIVATE">Личный</option>
-        </select>
+        </Select>
 
         <div className="ml-auto flex gap-2">
           {editable && (
@@ -239,7 +240,7 @@ function SourceRow({
                 disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate()}
                 aria-label="Удалить источник"
-                className="hover:text-conflict"
+                className="hover:text-danger"
               >
                 <Trash2 className="size-4" />
               </Button>

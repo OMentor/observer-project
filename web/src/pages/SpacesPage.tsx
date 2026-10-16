@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { createSpace, deleteSpace, fetchSpaces } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
+import { colorForName } from '@/lib/palette';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -43,8 +46,8 @@ export function SpacesPage() {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl text-text">Пространства</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="font-serif text-h1 text-text-primary">Пространства</h1>
+          <p className="mt-1 text-body-sm text-text-secondary">
             Группы источников и участников.
           </p>
         </div>
@@ -55,35 +58,62 @@ export function SpacesPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted">Загрузка…</p>
+        <p className="text-body-sm text-text-secondary">Загрузка…</p>
       ) : spaces.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
-          Пока нет пространств. Создайте первое.
-        </div>
+        <EmptyState
+          icon={<LayoutGrid className="size-5" />}
+          title="Пока нет пространств"
+          description="Создайте первое пространство, чтобы добавлять источники и приглашать участников."
+          action={
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="size-4" />
+              Создать пространство
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {spaces.map((space) => (
-            <div
+          {spaces.map((space, index) => (
+            <Card
               key={space.id}
-              className="group rounded-xl border border-border bg-surface p-5 transition-colors hover:border-accent/50"
+              interactive
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${index * 30}ms`, animationFillMode: 'backwards' }}
             >
               <Link to={`/spaces/${space.id}`} className="block">
-                <h2 className="text-lg font-medium text-text">{space.name}</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Источников: {space.sources?.length ?? 0}
-                </p>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="flex size-9 shrink-0 items-center justify-center rounded-md"
+                    style={{
+                      background: `${colorForName(space.name)}33`,
+                    }}
+                  >
+                    <span
+                      className="size-3 rounded-full"
+                      style={{ background: colorForName(space.name) }}
+                    />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-h4 text-text-primary">
+                      {space.name}
+                    </h2>
+                    <p className="text-body-sm text-text-secondary">
+                      Источников: {space.sources?.length ?? 0}
+                    </p>
+                  </div>
+                </div>
               </Link>
               {space.owner_id === currentUserId && (
                 <button
                   type="button"
                   onClick={() => deleteMutation.mutate(space.id)}
-                  className="mt-4 inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-conflict"
+                  className="mt-4 inline-flex items-center gap-1 text-caption text-text-muted transition-colors hover:text-danger"
                 >
                   <Trash2 className="size-3.5" />
                   Удалить
                 </button>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -95,7 +125,7 @@ export function SpacesPage() {
             Например: «Работа», «Личное», «Семья».
           </DialogDescription>
           <form
-            className="mt-4 space-y-4"
+            className="mt-6 space-y-5"
             onSubmit={(e) => {
               e.preventDefault();
               if (name.trim()) {
@@ -103,16 +133,15 @@ export function SpacesPage() {
               }
             }}
           >
-            <div className="space-y-1">
-              <Label htmlFor="space-name">Название</Label>
+            <Field label="Название" htmlFor="space-name">
               <Input
                 id="space-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
               />
-            </div>
-            <div className="flex justify-end gap-2">
+            </Field>
+            <div className="flex items-center justify-end gap-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -122,7 +151,8 @@ export function SpacesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || !name.trim()}
+                loading={createMutation.isPending}
+                disabled={!name.trim()}
               >
                 Создать
               </Button>

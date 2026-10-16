@@ -3,6 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { fetchEventHistory, fetchEvents, fetchSpaces } from '@/lib/services';
 import type { CalendarEvent, EventHistoryEntry, Source } from '@/lib/types';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 const ACTION_LABELS: Record<EventHistoryEntry['action'], string> = {
   CREATED: 'Создано',
@@ -74,14 +75,14 @@ export function HistoryPage() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="font-serif text-3xl text-text">История</h1>
-        <p className="mt-1 text-sm text-muted">
+        <h1 className="font-serif text-h1 text-text-primary">История</h1>
+        <p className="mt-1 text-body-sm text-text-secondary">
           Журнал изменений событий: кто и когда создал, изменил или удалил.
         </p>
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+        <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
           Событий пока нет.
         </div>
       ) : (
@@ -90,15 +91,14 @@ export function HistoryPage() {
             <div className="space-y-1">
               <label
                 htmlFor="history-source"
-                className="text-sm font-medium text-muted"
+                className="text-body-sm font-medium text-text-secondary"
               >
                 Источник
               </label>
-              <select
+              <Select
                 id="history-source"
                 value={sourceFilter}
                 onChange={(event) => setSourceFilter(event.target.value)}
-                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
               >
                 <option value="">Все источники</option>
                 {sources.map((source) => (
@@ -106,7 +106,7 @@ export function HistoryPage() {
                     {source.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <Input
@@ -118,15 +118,14 @@ export function HistoryPage() {
             <div className="space-y-1">
               <label
                 htmlFor="history-event"
-                className="text-sm font-medium text-muted"
+                className="text-body-sm font-medium text-text-secondary"
               >
                 Событие
               </label>
-              <select
+              <Select
                 id="history-event"
                 value={selectedId}
                 onChange={(event) => setSelectedId(event.target.value)}
-                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
               >
                 <option value="">— выберите событие —</option>
                 {filteredEvents.map((event) => (
@@ -135,19 +134,19 @@ export function HistoryPage() {
                     {event.busy ? ' (занято)' : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
           <div className="space-y-2">
             {!selectedId ? (
-              <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+              <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
                 Выберите событие, чтобы увидеть его историю.
               </div>
             ) : isLoading ? (
-              <p className="text-sm text-muted">Загрузка…</p>
+              <p className="text-body-sm text-text-secondary">Загрузка…</p>
             ) : history.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+              <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
                 История пуста.
               </div>
             ) : (
@@ -158,8 +157,8 @@ export function HistoryPage() {
                     onClick={() => setActionFilter('')}
                     className={
                       actionFilter === ''
-                        ? 'rounded-full bg-accent/15 px-3 py-1 text-xs text-accent'
-                        : 'rounded-full px-3 py-1 text-xs text-muted hover:bg-surface'
+                        ? 'rounded-full bg-accent-muted px-3 py-1 text-xs text-accent'
+                        : 'rounded-full px-3 py-1 text-caption text-text-muted hover:bg-bg-surface'
                     }
                   >
                     Все
@@ -173,8 +172,8 @@ export function HistoryPage() {
                       onClick={() => setActionFilter(action)}
                       className={
                         actionFilter === action
-                          ? 'rounded-full bg-accent/15 px-3 py-1 text-xs text-accent'
-                          : 'rounded-full px-3 py-1 text-xs text-muted hover:bg-surface'
+                          ? 'rounded-full bg-accent-muted px-3 py-1 text-xs text-accent'
+                          : 'rounded-full px-3 py-1 text-caption text-text-muted hover:bg-bg-surface'
                       }
                     >
                       {ACTION_LABELS[action]}
@@ -182,7 +181,7 @@ export function HistoryPage() {
                   ))}
                 </div>
                 {visibleHistory.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+                  <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
                     Нет записей с этим действием.
                   </div>
                 ) : (
@@ -190,17 +189,17 @@ export function HistoryPage() {
                     {visibleHistory.map((entry) => (
                       <li
                         key={entry.id}
-                        className="rounded-xl border border-border bg-surface px-4 py-3"
+                        className="rounded-lg bg-bg-surface px-4 py-3 shadow-card"
                       >
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-text">
                             {ACTION_LABELS[entry.action]}
                           </span>
-                          <span className="text-xs text-muted">
+                          <span className="text-caption text-text-muted">
                             {formatDate(entry.created_at)}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-muted">
+                        <p className="mt-1 text-caption text-text-muted">
                           {entry.user.name}
                           {diff(entry) && ` · ${diff(entry)}`}
                         </p>

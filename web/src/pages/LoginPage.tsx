@@ -7,7 +7,8 @@ import { loginRequest } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
+import { Logo } from '@/components/ui/logo';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -33,8 +34,7 @@ export function LoginPage() {
     try {
       const session = await loginRequest(values.email, values.password);
       setSession(session);
-      const from =
-        (location.state as { from?: string } | null)?.from ?? '/';
+      const from = (location.state as { from?: string } | null)?.from ?? '/';
       navigate(from, { replace: true });
     } catch {
       setServerError('Неверный email или пароль');
@@ -45,38 +45,44 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center p-6">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-sm space-y-4 rounded-xl border border-border bg-surface p-6"
+        className="w-full max-w-sm space-y-6 rounded-lg bg-bg-surface p-8 shadow-card"
       >
-        <div className="space-y-1">
-          <h1 className="font-serif text-3xl text-text">Плетение</h1>
-          <p className="text-sm text-muted">Вход в календарь-планировщик</p>
+        <div className="space-y-2 text-center">
+          <div className="flex justify-center">
+            <Logo size={40} animated />
+          </div>
+          <h1 className="font-serif text-h1 text-text-primary">Плетение</h1>
+          <p className="text-body-sm text-text-secondary">
+            Вход в календарь-планировщик
+          </p>
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="user@example.com" {...register('email')} />
-          {errors.email && (
-            <span className="text-xs text-conflict">{errors.email.message}</span>
-          )}
-        </div>
+        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+          <Input
+            id="email"
+            type="email"
+            placeholder="user@example.com"
+            error={Boolean(errors.email)}
+            {...register('email')}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <Label htmlFor="password">Пароль</Label>
-          <Input id="password" type="password" {...register('password')} />
-          {errors.password && (
-            <span className="text-xs text-conflict">
-              {errors.password.message}
-            </span>
-          )}
-        </div>
+        <Field label="Пароль" htmlFor="password" error={errors.password?.message}>
+          <Input
+            id="password"
+            type="password"
+            error={Boolean(errors.password)}
+            {...register('password')}
+          />
+        </Field>
 
-        {serverError && <p className="text-xs text-conflict">{serverError}</p>}
+        {serverError && <p className="text-caption text-danger">{serverError}</p>}
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? 'Вход…' : 'Войти'}
+        <Button type="submit" loading={isSubmitting} className="w-full">
+          Войти
         </Button>
 
-        <p className="text-center text-sm text-muted">
+        <p className="text-center text-body-sm text-text-secondary">
           Нет аккаунта?{' '}
           <Link to="/register" className="text-accent hover:underline">
             Зарегистрироваться

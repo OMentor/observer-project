@@ -11,9 +11,9 @@ export function PlaceholderPage({
   const navigate = useNavigate();
   return (
     <section className="space-y-4">
-      <h1 className="font-serif text-3xl text-text">{title}</h1>
-      <p className="text-sm text-muted">{description}</p>
-      <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
+      <h1 className="font-serif text-h1 text-text-primary">{title}</h1>
+      <p className="text-body-sm text-text-secondary">{description}</p>
+      <div className="rounded-lg border border-dashed border-border bg-bg-surface/40 p-10 text-center text-body-sm text-text-secondary">
         Раздел появится на следующем этапе.
       </div>
       <Button variant="outline" onClick={() => navigate('/')}>

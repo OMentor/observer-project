@@ -8,7 +8,7 @@ const labels: Record<RealtimeStatus, string> = {
 };
 
 const dotStyles: Record<RealtimeStatus, string> = {
-  connecting: 'bg-accent-2 animate-pulse',
+  connecting: 'bg-amber animate-pulse',
   connected: 'bg-success',
   disconnected: 'bg-muted',
 };
@@ -18,7 +18,7 @@ export function ConnectionIndicator() {
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-xs text-muted"
+      className="inline-flex items-center gap-1.5 text-caption text-text-muted"
       title={`Real-time: ${labels[status]}`}
     >
       <span className={cn('size-2 rounded-full', dotStyles[status])} />

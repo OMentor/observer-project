@@ -4,11 +4,18 @@ import { cn } from '@/lib/cn';
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   error?: boolean;
+  containerClassName?: string;
 }
 
-export function Select({ className, error, children, ...props }: SelectProps) {
+export function Select({
+  className,
+  containerClassName,
+  error,
+  children,
+  ...props
+}: SelectProps) {
   return (
-    <div className="relative">
+    <div className={cn('relative', containerClassName)}>
       <select
         className={cn(
           'h-10 w-full appearance-none rounded-md border border-border bg-bg-surface pl-4 pr-10 text-body text-text-primary',

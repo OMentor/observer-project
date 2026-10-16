@@ -1,4 +1,5 @@
 import type { Space } from '@/lib/types';
+import { Select } from '@/components/ui/select';
 
 export function SpacePicker({
   spaces,
@@ -10,16 +11,17 @@ export function SpacePicker({
   onChange: (id: string) => void;
 }) {
   return (
-    <select
+    <Select
+      containerClassName="w-[200px]"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
+      aria-label="Пространство"
     >
       {spaces.map((space) => (
         <option key={space.id} value={space.id}>
           {space.name}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }

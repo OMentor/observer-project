@@ -14,7 +14,12 @@ import { PRESETS, PRESET_HINTS, PRESET_LABELS } from '@/lib/presets';
 import { useSpaceAccess } from '@/hooks/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
+import { Select } from '@/components/ui/select';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { PresetBadge } from '@/components/ui/preset-badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconButton } from '@/components/ui/icon-button';
 import { CopyButton } from '@/components/CopyButton';
 import { SpacePicker } from '@/components/SpacePicker';
 import {
@@ -36,18 +41,18 @@ type TokenStatusKey = 'active' | 'used' | 'expired' | 'revoked';
 function tokenStatus(token: Token): {
   key: TokenStatusKey;
   label: string;
-  tone: string;
+  tone: BadgeTone;
 } {
   if (token.revoked_at) {
-    return { key: 'revoked', label: 'Отозван', tone: 'text-conflict' };
+    return { key: 'revoked', label: 'Отозван', tone: 'danger' };
   }
   if (token.used_at) {
-    return { key: 'used', label: 'Использован', tone: 'text-muted' };
+    return { key: 'used', label: 'Использован', tone: 'muted' };
   }
   if (token.expires_at && new Date(token.expires_at).getTime() < Date.now()) {
-    return { key: 'expired', label: 'Истёк', tone: 'text-muted' };
+    return { key: 'expired', label: 'Истёк', tone: 'muted' };
   }
-  return { key: 'active', label: 'Активен', tone: 'text-accent' };
+  return { key: 'active', label: 'Активен', tone: 'accent' };
 }
 
 const STATUS_LABELS: Record<TokenStatusKey, string> = {
@@ -126,7 +131,12 @@ export function TokensPage() {
           expires_at: expires,
         });
       }
-      return [await createToken(selectedSpaceId, { preset: tokenPreset, expires_at: expires })];
+      return [
+        await createToken(selectedSpaceId, {
+          preset: tokenPreset,
+          expires_at: expires,
+        }),
+      ];
     },
     onSuccess: (created) => {
       setIssued(created);
@@ -145,26 +155,28 @@ export function TokensPage() {
   });
 
   if (spacesLoading) {
-    return <p className="text-sm text-muted">Загрузка…</p>;
+    return <p className="text-body-sm text-text-secondary">Загрузка…</p>;
   }
 
   if (spaces.length === 0) {
     return (
-      <section className="space-y-4">
-        <h1 className="font-serif text-3xl text-text">Токены</h1>
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
-          Сначала создайте пространство.
-        </div>
+      <section className="space-y-6">
+        <h1 className="font-serif text-h1 text-text-primary">Токены</h1>
+        <EmptyState
+          icon={<KeyRound className="size-5" />}
+          title="Сначала создайте пространство"
+          description="Токены приглашают участников в пространство с заданным пресетом прав."
+        />
       </section>
     );
   }
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl text-text">Токены</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="font-serif text-h1 text-text-primary">Токены</h1>
+          <p className="mt-1 text-body-sm text-text-secondary">
             Токены приглашают участников с заданным пресетом прав.
           </p>
         </div>
@@ -175,7 +187,12 @@ export function TokensPage() {
             onChange={setSpaceId}
           />
           {isFull && (
-            <Button onClick={() => { setError(null); setOpen(true); }}>
+            <Button
+              onClick={() => {
+                setError(null);
+                setOpen(true);
+              }}
+            >
               <Plus className="size-4" />
               Токен
             </Button>
@@ -184,7 +201,7 @@ export function TokensPage() {
       </div>
 
       {!isFull && (
-        <div className="rounded-xl border border-border bg-surface/40 p-4 text-sm text-muted">
+        <div className="rounded-lg bg-bg-surface p-4 text-body-sm text-text-secondary shadow-card">
           {preset
             ? `Ваш пресет — «${PRESET_LABELS[preset]}». Управление токенами доступно только владельцу и участникам с полным доступом.`
             : 'Нет доступа к этому пространству.'}
@@ -192,23 +209,21 @@ export function TokensPage() {
       )}
 
       {issued.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-accent/40 bg-accent/5 p-4">
-          <p className="text-sm text-text">
+        <div className="space-y-2 rounded-lg border border-accent/40 bg-accent-muted p-4">
+          <p className="text-body text-text-primary">
             Токен{issued.length > 1 ? 'ы' : ''} показывается один раз —
             сохраните {issued.length > 1 ? 'их' : 'его'} сейчас.
           </p>
           {issued.map((token) => (
             <div
               key={token.id}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2"
+              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg px-3 py-2"
             >
-              <KeyRound className="size-4 text-accent" />
-              <code className="min-w-0 flex-1 truncate text-xs text-text">
+              <KeyRound className="size-4 shrink-0 text-amber" />
+              <code className="min-w-0 flex-1 truncate font-mono text-mono text-text-primary">
                 {token.token}
               </code>
-              <span className="text-xs text-muted">
-                {PRESET_LABELS[token.preset]}
-              </span>
+              <PresetBadge preset={token.preset} />
               <CopyButton value={token.token ?? ''} label="Токен" />
               <CopyButton
                 value={`${window.location.origin}/activate/${token.token}`}
@@ -219,7 +234,7 @@ export function TokensPage() {
           <button
             type="button"
             onClick={() => setIssued([])}
-            className="text-xs text-muted hover:text-text"
+            className="text-caption text-text-muted transition-colors hover:text-text-primary"
           >
             Скрыть
           </button>
@@ -227,13 +242,14 @@ export function TokensPage() {
       )}
 
       {isFull && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3">
-          <select
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-bg-surface p-3 shadow-card">
+          <Select
+            containerClassName="w-[180px]"
+            aria-label="Статус"
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value as 'all' | TokenStatusKey)
             }
-            className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
           >
             <option value="all">Все статусы</option>
             {(Object.keys(STATUS_LABELS) as TokenStatusKey[]).map((key) => (
@@ -241,12 +257,13 @@ export function TokensPage() {
                 {STATUS_LABELS[key]}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <select
+          <Select
+            containerClassName="w-[180px]"
+            aria-label="Пресет"
             value={presetFilter}
             onChange={(e) => setPresetFilter(e.target.value as '' | Preset)}
-            className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
           >
             <option value="">Все пресеты</option>
             {PRESETS.map((item) => (
@@ -254,13 +271,14 @@ export function TokensPage() {
                 {PRESET_LABELS[item]}
               </option>
             ))}
-          </select>
+          </Select>
 
           <Input
             value={creatorSearch}
             onChange={(e) => setCreatorSearch(e.target.value)}
             placeholder="Поиск по автору"
             className="max-w-xs flex-1"
+            aria-label="Поиск по автору"
           />
 
           {filtersActive && (
@@ -277,7 +295,7 @@ export function TokensPage() {
             </Button>
           )}
 
-          <span className="text-xs text-muted">
+          <span className="text-caption text-text-muted">
             Найдено: {filteredTokens.length}
           </span>
         </div>
@@ -285,56 +303,73 @@ export function TokensPage() {
 
       {isFull &&
         (isLoading ? (
-          <p className="text-sm text-muted">Загрузка…</p>
+          <p className="text-body-sm text-text-secondary">Загрузка…</p>
         ) : filteredTokens.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-surface/40 p-10 text-center text-sm text-muted">
-            {filtersActive
-              ? 'Нет токенов по заданным фильтрам.'
-              : 'Активных токенов нет.'}
-          </div>
+          <EmptyState
+            icon={<KeyRound className="size-5" />}
+            title={
+              filtersActive
+                ? 'Нет токенов по заданным фильтрам'
+                : 'Активных токенов нет'
+            }
+          />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-left text-xs text-muted">
+          <div className="overflow-x-auto rounded-lg border border-border bg-bg-surface shadow-card">
+            <table className="w-full text-body-sm">
+              <thead className="border-b border-border bg-bg-elevated text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Пресет</th>
-                  <th className="px-4 py-2 font-medium">Создал</th>
-                  <th className="px-4 py-2 font-medium">Создан</th>
-                  <th className="px-4 py-2 font-medium">Действует до</th>
-                  <th className="px-4 py-2 font-medium">Статус</th>
-                  <th className="px-4 py-2" />
+                  <th className="px-4 py-3 text-overline text-text-secondary">
+                    Пресет
+                  </th>
+                  <th className="px-4 py-3 text-overline text-text-secondary">
+                    Создал
+                  </th>
+                  <th className="px-4 py-3 text-overline text-text-secondary">
+                    Создан
+                  </th>
+                  <th className="px-4 py-3 text-overline text-text-secondary">
+                    Действует до
+                  </th>
+                  <th className="px-4 py-3 text-overline text-text-secondary">
+                    Статус
+                  </th>
+                  <th className="px-4 py-3 text-right text-overline text-text-secondary">
+                    Действия
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTokens.map((token) => {
                   const status = tokenStatus(token);
                   return (
-                    <tr key={token.id} className="border-t border-border">
-                      <td className="px-4 py-2 text-text">
-                        {PRESET_LABELS[token.preset]}
+                    <tr
+                      key={token.id}
+                      className="border-b border-border transition-colors last:border-0 hover:bg-bg-elevated/50"
+                    >
+                      <td className="px-4 py-3">
+                        <PresetBadge preset={token.preset} />
                       </td>
-                      <td className="px-4 py-2 text-muted">
+                      <td className="px-4 py-3 text-text-secondary">
                         {token.creator?.name ?? '—'}
                       </td>
-                      <td className="px-4 py-2 text-muted">
+                      <td className="px-4 py-3 text-text-secondary">
                         {formatDate(token.created_at)}
                       </td>
-                      <td className="px-4 py-2 text-muted">
+                      <td className="px-4 py-3 text-text-secondary">
                         {formatDate(token.expires_at)}
                       </td>
-                      <td className={`px-4 py-2 ${status.tone}`}>
-                        {status.label}
+                      <td className="px-4 py-3">
+                        <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-4 py-3 text-right">
                         {!token.revoked_at && (
-                          <button
-                            type="button"
+                          <IconButton
+                            icon={<Trash2 className="size-4" />}
+                            label="Отозвать"
+                            variant="danger"
+                            className="ml-auto"
                             onClick={() => revokeMutation.mutate(token.id)}
-                            className="inline-flex items-center gap-1 text-xs text-muted hover:text-conflict"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Отозвать
-                          </button>
+                          />
                         )}
                       </td>
                     </tr>
@@ -346,50 +381,45 @@ export function TokensPage() {
         ))}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[640px]">
           <DialogTitle>Новый токен</DialogTitle>
           <DialogDescription>
             Участник активирует токен и получит доступ с указанным пресетом.
           </DialogDescription>
           <form
-            className="mt-4 space-y-4"
+            className="mt-6 space-y-5"
             onSubmit={(event) => {
               event.preventDefault();
               setError(null);
               createMutation.mutate();
             }}
           >
-            <div className="space-y-1">
-              <Label htmlFor="token-preset">Пресет</Label>
-              <select
+            <Field label="Пресет" htmlFor="token-preset" helper={PRESET_HINTS[tokenPreset]}>
+              <Select
                 id="token-preset"
                 value={tokenPreset}
                 onChange={(event) =>
                   setTokenPreset(event.target.value as Preset)
                 }
-                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
               >
                 {PRESETS.map((item) => (
                   <option key={item} value={item}>
                     {PRESET_LABELS[item]}
                   </option>
                 ))}
-              </select>
-              <p className="text-xs text-muted">{PRESET_HINTS[tokenPreset]}</p>
-            </div>
+              </Select>
+            </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="token-expires">Действует до</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Действует до" htmlFor="token-expires">
                 <Input
                   id="token-expires"
                   type="date"
                   value={expiresAt}
                   onChange={(event) => setExpiresAt(event.target.value)}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="token-count">Количество</Label>
+              </Field>
+              <Field label="Количество" htmlFor="token-count">
                 <Input
                   id="token-count"
                   type="number"
@@ -398,16 +428,19 @@ export function TokensPage() {
                   value={count}
                   onChange={(event) =>
                     setCount(
-                      Math.min(100, Math.max(1, Number(event.target.value) || 1)),
+                      Math.min(
+                        100,
+                        Math.max(1, Number(event.target.value) || 1),
+                      ),
                     )
                   }
                 />
-              </div>
+              </Field>
             </div>
 
-            {error && <p className="text-xs text-conflict">{error}</p>}
+            {error && <p className="text-caption text-danger">{error}</p>}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <Button
                 type="button"
                 variant="ghost"
@@ -415,7 +448,10 @@ export function TokensPage() {
               >
                 Отмена
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                loading={createMutation.isPending}
+              >
                 Создать
               </Button>
             </div>

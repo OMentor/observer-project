@@ -7,7 +7,8 @@ import { registerRequest } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
+import { Logo } from '@/components/ui/logo';
 
 const schema = z.object({
   name: z.string().min(1, 'Введите имя'),
@@ -43,46 +44,51 @@ export function RegisterPage() {
     <div className="flex min-h-full items-center justify-center p-6">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-sm space-y-4 rounded-xl border border-border bg-surface p-6"
+        className="w-full max-w-sm space-y-6 rounded-lg bg-bg-surface p-8 shadow-card"
       >
-        <div className="space-y-1">
-          <h1 className="font-serif text-3xl text-text">Регистрация</h1>
-          <p className="text-sm text-muted">Создайте аккаунт в «Плетении»</p>
+        <div className="space-y-2 text-center">
+          <div className="flex justify-center">
+            <Logo size={40} animated />
+          </div>
+          <h1 className="font-serif text-h1 text-text-primary">Регистрация</h1>
+          <p className="text-body-sm text-text-secondary">
+            Создайте аккаунт в «Плетении»
+          </p>
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="name">Имя</Label>
-          <Input id="name" {...register('name')} />
-          {errors.name && (
-            <span className="text-xs text-conflict">{errors.name.message}</span>
-          )}
-        </div>
+        <Field label="Имя" htmlFor="name" error={errors.name?.message}>
+          <Input
+            id="name"
+            error={Boolean(errors.name)}
+            {...register('name')}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" {...register('email')} />
-          {errors.email && (
-            <span className="text-xs text-conflict">{errors.email.message}</span>
-          )}
-        </div>
+        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+          <Input
+            id="email"
+            type="email"
+            error={Boolean(errors.email)}
+            {...register('email')}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <Label htmlFor="password">Пароль</Label>
-          <Input id="password" type="password" {...register('password')} />
-          {errors.password && (
-            <span className="text-xs text-conflict">
-              {errors.password.message}
-            </span>
-          )}
-        </div>
+        <Field label="Пароль" htmlFor="password" error={errors.password?.message}>
+          <Input
+            id="password"
+            type="password"
+            error={Boolean(errors.password)}
+            {...register('password')}
+          />
+        </Field>
 
-        {serverError && <p className="text-xs text-conflict">{serverError}</p>}
+        {serverError && <p className="text-caption text-danger">{serverError}</p>}
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? 'Создание…' : 'Создать аккаунт'}
+        <Button type="submit" loading={isSubmitting} className="w-full">
+          Создать аккаунт
         </Button>
 
-        <p className="text-center text-sm text-muted">
+        <p className="text-center text-body-sm text-text-secondary">
           Уже есть аккаунт?{' '}
           <Link to="/login" className="text-accent hover:underline">
             Войти
