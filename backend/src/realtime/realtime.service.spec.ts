@@ -51,13 +51,14 @@ describe('RealtimeService', () => {
     await service.eventChanged(RealtimeEvents.eventCreated, event as never, {
       space_id: 'sp1',
       visibility: 'SHARED',
-    });
+    }, 'owner');
 
     const calls = new Map(
       gateway.emitToUser.mock.calls.map((call) => [call[0], call[2]]),
     );
     expect(calls.get('owner')!.event.busy).toBe(false);
     expect(calls.get('owner')!.event.title).toBe('Созвон');
+    expect(calls.get('owner')!.actor_id).toBe('owner');
     expect(calls.get('busy')!.event.busy).toBe(true);
     expect(calls.get('busy')!.event.title).toBe('Занято');
     expect(calls.get('own')!.event.busy).toBe(true);
@@ -74,25 +75,25 @@ describe('RealtimeService', () => {
     await service.eventChanged(RealtimeEvents.eventUpdated, event as never, {
       space_id: 'sp1',
       visibility: 'PRIVATE',
-    });
+    }, 'owner');
 
     const recipients = gateway.emitToUser.mock.calls.map((call) => call[0]);
     expect(recipients).toEqual(['owner']);
   });
 
   it('memberKicked исключает пользователя из комнаты и уведомляет', async () => {
-    await service.memberKicked('sp1', 'u2');
+    await service.memberKicked('sp1', 'u2', 'owner');
 
     expect(gateway.removeUserFromSpace).toHaveBeenCalledWith('u2', 'sp1');
     expect(gateway.emitToUser).toHaveBeenCalledWith(
       'u2',
       RealtimeEvents.memberKicked,
-      { space_id: 'sp1', user_id: 'u2' },
+      { space_id: 'sp1', user_id: 'u2', actor_id: 'owner' },
     );
     expect(gateway.emitToSpace).toHaveBeenCalledWith(
       'sp1',
       RealtimeEvents.memberKicked,
-      { space_id: 'sp1', user_id: 'u2' },
+      { space_id: 'sp1', user_id: 'u2', actor_id: 'owner' },
     );
   });
 
@@ -102,7 +103,7 @@ describe('RealtimeService', () => {
     expect(gateway.emitToSpace).toHaveBeenCalledWith(
       'sp1',
       RealtimeEvents.tokenActivated,
-      { space_id: 'sp1', user_id: 'u2', preset: 'OWN' },
+      { space_id: 'sp1', user_id: 'u2', preset: 'OWN', actor_id: 'u2' },
     );
   });
 });

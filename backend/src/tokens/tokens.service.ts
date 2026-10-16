@@ -137,7 +137,7 @@ export class TokensService {
       });
     }
 
-    this.realtime.memberJoined(token.space_id, userId, token.preset);
+    this.realtime.memberJoined(token.space_id, userId, token.preset, userId);
     this.realtime.tokenActivated(token.space_id, userId, token.preset);
 
     return { success: true, space_id: token.space_id, preset: token.preset };

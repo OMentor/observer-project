@@ -36,6 +36,7 @@ export class MembersService {
       member.id,
       member.user_id,
       dto.preset,
+      userId,
     );
     return updated;
   }
@@ -46,7 +47,7 @@ export class MembersService {
       where: { id: member.id },
       data: { revoked_at: new Date() },
     });
-    await this.realtime.memberKicked(member.space_id, member.user_id);
+    await this.realtime.memberKicked(member.space_id, member.user_id, userId);
     return { success: true };
   }
 

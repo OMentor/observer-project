@@ -59,6 +59,7 @@ export class EventsService {
       RealtimeEvents.eventCreated,
       event,
       source,
+      userId,
     );
     return event;
   }
@@ -227,6 +228,7 @@ export class EventsService {
       RealtimeEvents.eventUpdated,
       updated,
       source,
+      userId,
     );
     return updated;
   }
@@ -246,6 +248,7 @@ export class EventsService {
       RealtimeEvents.eventDeleted,
       current,
       source,
+      userId,
     );
     return { success: true };
   }

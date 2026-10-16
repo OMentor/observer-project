@@ -21,6 +21,7 @@ export class RealtimeService {
     action: EventAction,
     event: CalendarEvent,
     source: SourceRef,
+    actorId: string,
   ): Promise<void> {
     const targets = await this.resolveTargets(source.space_id);
     for (const [userId, preset] of targets) {
@@ -32,12 +33,23 @@ export class RealtimeService {
         space_id: source.space_id,
         source_id: event.source_id,
         event: masked,
+        actor_id: actorId,
       });
     }
   }
 
-  memberJoined(spaceId: string, userId: string, preset: Preset): void {
-    const payload = { space_id: spaceId, user_id: userId, preset };
+  memberJoined(
+    spaceId: string,
+    userId: string,
+    preset: Preset,
+    actorId: string,
+  ): void {
+    const payload = {
+      space_id: spaceId,
+      user_id: userId,
+      preset,
+      actor_id: actorId,
+    };
     this.gateway.emitToSpace(spaceId, RealtimeEvents.memberJoined, payload);
     this.gateway.emitToUser(userId, RealtimeEvents.memberJoined, payload);
   }
@@ -47,20 +59,26 @@ export class RealtimeService {
     memberId: string,
     userId: string,
     preset: Preset,
+    actorId: string,
   ): void {
     const payload = {
       space_id: spaceId,
       member_id: memberId,
       user_id: userId,
       preset,
+      actor_id: actorId,
     };
     this.gateway.emitToSpace(spaceId, RealtimeEvents.memberUpdated, payload);
     this.gateway.emitToUser(userId, RealtimeEvents.memberUpdated, payload);
   }
 
-  async memberKicked(spaceId: string, userId: string): Promise<void> {
+  async memberKicked(
+    spaceId: string,
+    userId: string,
+    actorId: string,
+  ): Promise<void> {
     await this.gateway.removeUserFromSpace(userId, spaceId);
-    const payload = { space_id: spaceId, user_id: userId };
+    const payload = { space_id: spaceId, user_id: userId, actor_id: actorId };
     this.gateway.emitToUser(userId, RealtimeEvents.memberKicked, payload);
     this.gateway.emitToSpace(spaceId, RealtimeEvents.memberKicked, payload);
   }
@@ -70,6 +88,7 @@ export class RealtimeService {
       space_id: spaceId,
       user_id: userId,
       preset,
+      actor_id: userId,
     });
   }
 
