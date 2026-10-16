@@ -1,15 +1,18 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
+  Bell,
   CalendarDays,
   History,
   KeyRound,
   LayoutGrid,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
-  Users,
   UserRound,
+  Users,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -19,6 +22,11 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { Toaster } from '@/components/Toaster';
+import { SearchInput } from '@/components/SearchInput';
+import { Logo } from '@/components/ui/logo';
+import { Avatar } from '@/components/ui/avatar';
+import { Tooltip } from '@/components/ui/tooltip';
+import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
 
 const navItems = [
   { to: '/', label: 'Пространства', icon: LayoutGrid, end: true },
@@ -36,31 +44,44 @@ function NavItem({
   icon: Icon,
   end,
   onClick,
+  collapsed,
 }: {
   to: string;
   label: string;
   icon: typeof CalendarDays;
   end?: boolean;
   onClick?: () => void;
+  collapsed?: boolean;
 }) {
-  return (
+  const link = (
     <NavLink
       to={to}
       end={end}
       onClick={onClick}
+      aria-label={label}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          'flex items-center gap-3 rounded-md px-3 py-2 text-body font-medium transition-colors duration-150 ease-out-expo',
+          collapsed && 'justify-center px-0',
           isActive
-            ? 'bg-accent/15 text-accent'
-            : 'text-muted hover:bg-surface hover:text-text',
+            ? 'bg-bg-elevated text-text-primary'
+            : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
         )
       }
     >
-      <Icon className="size-4" />
-      {label}
+      <Icon className="size-4 shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip label={label} side="bottom" className="w-full">
+        <span className="flex w-full">{link}</span>
+      </Tooltip>
+    );
+  }
+  return link;
 }
 
 export function AppLayout({ children }: { children?: ReactNode }) {
@@ -69,6 +90,8 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clear = useAuthStore((s) => s.clear);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [query, setQuery] = useState('');
 
   useRealtime();
 
@@ -80,77 +103,155 @@ export function AppLayout({ children }: { children?: ReactNode }) {
     navigate('/login', { replace: true });
   };
 
-  const sidebar = (
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      return navItems;
+    }
+    return navItems.filter((item) => item.label.toLowerCase().includes(q));
+  }, [query]);
+
+  const nav = (isCollapsed: boolean) => (
     <nav className="flex flex-col gap-1">
-      {navItems.map((item) => (
+      {items.map((item) => (
         <NavItem
           key={item.to}
           {...item}
+          collapsed={isCollapsed}
           onClick={() => setMenuOpen(false)}
         />
       ))}
     </nav>
   );
 
+  const displayName = user?.name ?? user?.email ?? 'Профиль';
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 sm:px-6">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Меню"
-            className="inline-flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text lg:hidden"
-          >
-            {menuOpen ? (
-              <X className="size-5" />
-            ) : (
-              <Menu className="size-5" />
-            )}
-          </button>
-          <span className="font-serif text-xl tracking-tight text-text">
+      <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-bg px-4 sm:px-6">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Меню"
+          className="inline-flex size-10 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary lg:hidden"
+        >
+          {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+        </button>
+
+        <div className="flex items-center gap-2">
+          <Logo size={32} animated />
+          <span className="font-serif text-h4 tracking-tight text-text-primary">
             Плетение
           </span>
-          <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
-            UI-бета
-          </span>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4 text-sm">
-          <ConnectionIndicator />
-          <span className="hidden text-muted sm:inline">
-            {user?.name ?? user?.email}
-          </span>
-          <ThemeToggle />
-          <button
-            type="button"
-            onClick={onLogout}
-            className="inline-flex items-center gap-1 text-muted transition-colors hover:text-conflict"
+
+        <div className="ml-2 hidden max-w-[480px] flex-1 md:block">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Поиск разделов…"
+          />
+        </div>
+
+        <div className="flex-1" />
+
+        <ConnectionIndicator />
+        <button
+          type="button"
+          onClick={() => navigate('/history')}
+          aria-label="История изменений"
+          title="История изменений"
+          className="relative inline-flex size-10 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary"
+        >
+          <Bell className="size-5" />
+        </button>
+        <ThemeToggle />
+        <Dropdown
+          trigger={
+            <button
+              type="button"
+              aria-label="Меню профиля"
+              className="rounded-full focus-visible:outline-none focus-visible:shadow-focus"
+            >
+              <Avatar name={displayName} size={32} />
+            </button>
+          }
+        >
+          <div className="px-3 py-2">
+            <p className="truncate text-body-sm font-medium text-text-primary">
+              {displayName}
+            </p>
+          </div>
+          <DropdownItem
+            icon={<UserRound className="size-4" />}
+            onSelect={() => navigate('/profile')}
           >
-            <LogOut className="size-4" />
-            <span className="hidden sm:inline">Выйти</span>
-          </button>
-        </div>
+            Профиль
+          </DropdownItem>
+          <DropdownItem
+            icon={<Settings className="size-4" />}
+            onSelect={() => navigate('/settings')}
+          >
+            Настройки
+          </DropdownItem>
+          <DropdownItem
+            icon={<LogOut className="size-4" />}
+            danger
+            onSelect={onLogout}
+          >
+            Выйти
+          </DropdownItem>
+        </Dropdown>
       </header>
+
       <div className="relative flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-border bg-surface/50 p-3 lg:block">
-          {sidebar}
+        <aside
+          className={cn(
+            'hidden shrink-0 flex-col border-r border-border bg-bg transition-all duration-250 ease-out-expo lg:flex',
+            collapsed ? 'w-16' : 'w-[280px]',
+          )}
+        >
+          <div className="flex-1 overflow-auto p-3">{nav(collapsed)}</div>
+          <div className="border-t border-border p-3">
+            <button
+              type="button"
+              onClick={() => setCollapsed((v) => !v)}
+              aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+              title={collapsed ? 'Развернуть' : 'Свернуть'}
+              className={cn(
+                'inline-flex h-9 items-center gap-2 rounded-md text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary',
+                collapsed ? 'w-full justify-center' : 'w-full px-3',
+              )}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4" />
+              ) : (
+                <>
+                  <PanelLeftClose className="size-4" />
+                  <span className="text-body-sm">Свернуть</span>
+                </>
+              )}
+            </button>
+          </div>
         </aside>
+
         {menuOpen && (
           <>
             <div
-              className="fixed inset-0 top-14 z-20 bg-black/40 lg:hidden"
+              className="fixed inset-0 top-16 z-20 bg-black/40 lg:hidden"
               onClick={() => setMenuOpen(false)}
               aria-hidden
             />
-            <aside
-              className="fixed bottom-0 left-0 top-14 z-30 w-60 border-r border-border bg-surface p-3 lg:hidden"
-            >
-              {sidebar}
+            <aside className="fixed bottom-0 left-0 top-16 z-30 w-[280px] animate-slide-in-right border-r border-border bg-bg p-3 lg:hidden">
+              {nav(false)}
             </aside>
           </>
         )}
-        <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6">
-          {children ?? <Outlet />}
+
+        <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <div className="mx-auto max-w-[1440px] animate-fade-in">
+            {children ?? <Outlet />}
+          </div>
         </main>
       </div>
       <Toaster />
