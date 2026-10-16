@@ -88,10 +88,18 @@ export function MembersPage() {
           <table className="w-full text-sm">
             <thead className="bg-bg-surface text-left text-caption text-text-muted">
               <tr>
-                <th className="px-4 py-2 font-medium">Участник</th>
-                <th className="px-4 py-2 font-medium">Email</th>
-                <th className="px-4 py-2 font-medium">Пресет</th>
-                <th className="px-4 py-2" />
+                <th scope="col" className="px-4 py-2 font-medium">
+                  Участник
+                </th>
+                <th scope="col" className="px-4 py-2 font-medium">
+                  Email
+                </th>
+                <th scope="col" className="px-4 py-2 font-medium">
+                  Пресет
+                </th>
+                <th scope="col" className="px-4 py-2">
+                  <span className="sr-only">Действия</span>
+                </th>
               </tr>
             </thead>
             <tbody>

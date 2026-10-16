@@ -18,10 +18,16 @@ export function ConnectionIndicator() {
 
   return (
     <span
+      role="status"
+      aria-live="polite"
+      aria-label={`Real-time: ${labels[status]}`}
       className="inline-flex items-center gap-1.5 text-caption text-text-muted"
       title={`Real-time: ${labels[status]}`}
     >
-      <span className={cn('size-2 rounded-full', dotStyles[status])} />
+      <span
+        className={cn('size-2 rounded-full', dotStyles[status])}
+        aria-hidden
+      />
       <span className="hidden sm:inline">{labels[status]}</span>
     </span>
   );

@@ -318,22 +318,40 @@ export function TokensPage() {
             <table className="w-full text-body-sm">
               <thead className="border-b border-border bg-bg-elevated text-left">
                 <tr>
-                  <th className="px-4 py-3 text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-overline text-text-secondary"
+                  >
                     Пресет
                   </th>
-                  <th className="px-4 py-3 text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-overline text-text-secondary"
+                  >
                     Создал
                   </th>
-                  <th className="px-4 py-3 text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-overline text-text-secondary"
+                  >
                     Создан
                   </th>
-                  <th className="px-4 py-3 text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-overline text-text-secondary"
+                  >
                     Действует до
                   </th>
-                  <th className="px-4 py-3 text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-overline text-text-secondary"
+                  >
                     Статус
                   </th>
-                  <th className="px-4 py-3 text-right text-overline text-text-secondary">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-right text-overline text-text-secondary"
+                  >
                     Действия
                   </th>
                 </tr>
@@ -438,7 +456,11 @@ export function TokensPage() {
               </Field>
             </div>
 
-            {error && <p className="text-caption text-danger">{error}</p>}
+            {error && (
+              <p role="alert" className="text-caption text-danger">
+                {error}
+              </p>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button

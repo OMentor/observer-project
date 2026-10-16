@@ -93,10 +93,11 @@ export function SpacePage() {
 
       {space && space.sources && space.sources.length > 0 ? (
         <div className="space-y-2">
-          {space.sources.map((source) => (
+          {space.sources.map((source, index) => (
             <div
               key={source.id}
-              className="flex items-center gap-3 rounded-lg bg-bg-surface px-4 py-3 shadow-card"
+              className="flex animate-fade-in-up items-center gap-3 rounded-lg bg-bg-surface px-4 py-3 shadow-card"
+              style={{ animationDelay: `${index * 30}ms`, animationFillMode: 'backwards' }}
             >
               <span
                 className="size-3 rounded-full"

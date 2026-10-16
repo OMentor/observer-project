@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -95,6 +95,19 @@ export function AppLayout({ children }: { children?: ReactNode }) {
 
   useRealtime();
 
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   const onLogout = async () => {
     if (refreshToken) {
       await logoutRequest(refreshToken).catch(() => undefined);
@@ -112,7 +125,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   }, [query]);
 
   const nav = (isCollapsed: boolean) => (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label="Основная навигация" className="flex flex-col gap-1">
       {items.map((item) => (
         <NavItem
           key={item.to}

@@ -186,10 +186,14 @@ export function HistoryPage() {
                   </div>
                 ) : (
                   <ol className="space-y-2">
-                    {visibleHistory.map((entry) => (
+                    {visibleHistory.map((entry, index) => (
                       <li
                         key={entry.id}
-                        className="rounded-lg bg-bg-surface px-4 py-3 shadow-card"
+                        className="animate-fade-in-up rounded-lg border border-border bg-bg-surface px-4 py-3 shadow-card"
+                        style={{
+                          animationDelay: `${index * 30}ms`,
+                          animationFillMode: 'backwards',
+                        }}
                       >
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-text">
