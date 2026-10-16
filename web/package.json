@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium",
+    "qa:realtime": "node qa/realtime-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
