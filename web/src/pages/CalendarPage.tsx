@@ -342,7 +342,11 @@ export function CalendarPage() {
             editable
             events={calendarEvents}
             datesSet={(info) =>
-              setRange({ from: info.startStr, to: info.endStr })
+              setRange((prev) =>
+                prev.from === info.startStr && prev.to === info.endStr
+                  ? prev
+                  : { from: info.startStr, to: info.endStr },
+              )
             }
             dateClick={onDateClick}
             eventClick={onEventClick}
