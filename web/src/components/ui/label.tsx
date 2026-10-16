@@ -1,14 +1,13 @@
-import * as LabelPrimitive from '@radix-ui/react-label';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/cn';
 
 export function Label({
   className,
   ...props
-}: ComponentProps<typeof LabelPrimitive.Root>) {
+}: ComponentProps<'label'>) {
   return (
-    <LabelPrimitive.Root
-      className={cn('text-sm font-medium text-muted', className)}
+    <label
+      className={cn('text-body-sm font-medium text-text-secondary', className)}
       {...props}
     />
   );
