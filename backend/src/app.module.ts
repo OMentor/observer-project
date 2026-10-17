@@ -10,6 +10,7 @@ import { EventsModule } from './events/events.module';
 import { TokensModule } from './tokens/tokens.module';
 import { MembersModule } from './members/members.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { DemoModule } from './demo/demo.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
@@ -30,6 +31,7 @@ import { PresetGuard } from './common/preset.guard';
     TokensModule,
     MembersModule,
     RealtimeModule,
+    DemoModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -168,3 +168,16 @@ export async function updateMember(id: string, preset: Preset) {
 export async function removeMember(id: string) {
   await api.delete(`/members/${id}`);
 }
+
+export type DemoSeedResult = {
+  created: boolean;
+  spaces: number;
+  sources: number;
+  events: number;
+  reason?: string;
+};
+
+export async function seedDemoData() {
+  const { data } = await api.post<DemoSeedResult>('/demo/seed');
+  return data;
+}

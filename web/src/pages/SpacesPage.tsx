@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
-import { createSpace, deleteSpace, fetchSpaces } from '@/lib/services';
+import { LayoutGrid, Plus, Sparkles, Trash2 } from 'lucide-react';
+import {
+  createSpace,
+  deleteSpace,
+  fetchSpaces,
+  seedDemoData,
+} from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
+import { useToastStore } from '@/store/toasts';
 import { colorForName } from '@/lib/palette';
 import {
   buildOnboardingSteps,
@@ -61,6 +67,32 @@ export function SpacesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['spaces'] }),
   });
 
+  const demoMutation = useMutation({
+    mutationFn: seedDemoData,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries();
+      useToastStore.getState().push(
+        result.created
+          ? {
+              title: 'Пример данных готов',
+              description: `Пространств: ${result.spaces}, источников: ${result.sources}, событий: ${result.events}.`,
+              tone: 'success',
+            }
+          : {
+              title: 'Данные уже есть',
+              description: 'У вас уже есть события — пример не добавлен.',
+              tone: 'info',
+            },
+      );
+    },
+    onError: () => {
+      useToastStore.getState().push({
+        title: 'Не удалось заполнить примером',
+        tone: 'danger',
+      });
+    },
+  });
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
@@ -95,10 +127,20 @@ export function SpacesPage() {
           title="Пока нет пространств"
           description="Создайте первое пространство, чтобы добавлять источники и приглашать участников."
           action={
-            <Button onClick={() => setOpen(true)}>
-              <Plus className="size-4" />
-              Создать пространство
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button onClick={() => setOpen(true)}>
+                <Plus className="size-4" />
+                Создать пространство
+              </Button>
+              <Button
+                variant="ghost"
+                loading={demoMutation.isPending}
+                onClick={() => demoMutation.mutate()}
+              >
+                <Sparkles className="size-4" />
+                Заполнить примером
+              </Button>
+            </div>
           }
         />
       ) : (
