@@ -1,3 +1,6 @@
+import { cn } from '@/lib/cn';
+import { LOGO_STRANDS } from '@/components/ui/logo-strands';
+
 export interface LogoProps {
   size?: number;
   animated?: boolean;
@@ -10,23 +13,34 @@ export function Logo({ size = 32, animated = false, className }: LogoProps) {
       width={size}
       height={size}
       viewBox="0 0 32 32"
-      className={animated ? `animate-weave ${className ?? ''}` : className}
+      className={cn(animated && 'animate-weave', className)}
       role="img"
       aria-label="Плетение"
     >
       <defs>
-        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient
+          id="logo-grad"
+          gradientUnits="userSpaceOnUse"
+          x1="6"
+          y1="6"
+          x2="26"
+          y2="26"
+        >
           <stop offset="0%" stopColor="#5B5FEF" />
           <stop offset="100%" stopColor="#F0A030" />
         </linearGradient>
       </defs>
-      <path
-        d="M8 8 Q16 16 24 8 M8 24 Q16 16 24 24 M16 4 Q16 16 16 28"
-        stroke="url(#logo-grad)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
+      <g
         fill="none"
-      />
+        stroke="url(#logo-grad)"
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {LOGO_STRANDS.map((d) => (
+          <path key={d} className="logo-strand" pathLength={100} d={d} />
+        ))}
+      </g>
     </svg>
   );
 }
