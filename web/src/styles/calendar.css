@@ -7,7 +7,7 @@
   --fc-event-bg-color: transparent;
   --fc-event-border-color: transparent;
   --fc-event-text-color: var(--text-primary);
-  font-family: 'Satoshi', 'General Sans', system-ui, sans-serif;
+  font-family: 'Onest', system-ui, sans-serif;
 }
 
 .fc .fc-toolbar-title {

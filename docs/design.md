@@ -62,8 +62,8 @@
 
 | Роль | Семейство (fallback) | Назначение |
 |------|----------------------|------------|
-| Sans (UI) | **Satoshi** → General Sans → system-ui | интерфейс |
-| Serif (бренд) | **Instrument Serif** → Georgia | заголовки, логотип |
+| Sans (UI) | **Onest** → system-ui | интерфейс (кириллица + латиница) |
+| Serif (бренд) | **Lora** → Georgia | заголовки, логотип (кириллица + латиница) |
 | Mono | **JetBrains Mono** → ui-monospace → Consolas | время, токены, коды |
 
 Шкала (размер / межстрочный):
@@ -150,7 +150,7 @@
 | Индикатор сети/real-time | `OfflineBanner`, `RealtimeIndicator` | оффлайн, подключение |
 
 > Паритет дизайн-системы с Web — частичный: Mobile использует собственную
-> Material-тему; шрифты Satoshi/Instrument Serif и часть новых компонентов на
+> Material-тему; шрифты Onest/Lora и часть новых компонентов на
 > mobile не переносились.
 
 ---

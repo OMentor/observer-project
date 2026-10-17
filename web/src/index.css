@@ -52,8 +52,8 @@
   --color-accent-2: var(--amber);
 
   /* Шрифты */
-  --font-sans: 'Satoshi', 'General Sans', system-ui, sans-serif;
-  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-sans: 'Onest', system-ui, sans-serif;
+  --font-serif: 'Lora', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
 
   /* Типографическая шкала */
