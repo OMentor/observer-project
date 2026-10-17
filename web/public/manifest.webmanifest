@@ -1,0 +1,33 @@
+{
+  "name": "Плетение — календарь-планировщик",
+  "short_name": "Плетение",
+  "description": "Календарь-планировщик: пространства, источники и события в одном окне.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1a1e",
+  "theme_color": "#1a1a1e",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
