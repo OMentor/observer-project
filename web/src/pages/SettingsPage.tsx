@@ -199,7 +199,7 @@ function SourceRow({
               onClick={() => setColor(c)}
               className={cn(
                 'size-6 rounded-full border-2 transition-transform',
-                color === c ? 'scale-110 border-text' : 'border-transparent',
+                color === c ? 'scale-110 border-text-primary' : 'border-transparent',
                 !editable && 'cursor-not-allowed opacity-60',
               )}
               style={{ backgroundColor: c }}

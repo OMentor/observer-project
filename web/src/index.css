@@ -38,18 +38,11 @@
   --color-danger-muted: var(--danger-muted);
 
   /* Текст */
-  --color-text: var(--text-primary);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-inverse: var(--text-inverse);
   --color-on-accent: var(--on-accent);
-
-  /* Обратная совместимость (старые имена токенов) */
-  --color-surface: var(--bg-surface);
-  --color-conflict: var(--danger);
-  --color-muted: var(--text-secondary);
-  --color-accent-2: var(--amber);
 
   /* Шрифты */
   --font-sans: 'Onest', system-ui, sans-serif;

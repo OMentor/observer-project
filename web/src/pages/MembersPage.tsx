@@ -107,7 +107,7 @@ export function MembersPage() {
                 const isOwner = member.user.id === selectedSpace?.owner_id;
                 return (
                   <tr key={member.id} className="border-t border-border">
-                    <td className="px-4 py-2 text-text">
+                    <td className="px-4 py-2 text-text-primary">
                       {member.user.name}
                       {isOwner && (
                         <Badge tone="accent" className="ml-2">
@@ -115,7 +115,7 @@ export function MembersPage() {
                         </Badge>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-muted">
+                    <td className="px-4 py-2 text-text-secondary">
                       {member.user.email}
                     </td>
                     <td className="px-4 py-2">
@@ -137,7 +137,7 @@ export function MembersPage() {
                           ))}
                         </Select>
                       ) : (
-                        <span className="text-muted">
+                        <span className="text-text-secondary">
                           {PRESET_LABELS[member.preset]}
                         </span>
                       )}

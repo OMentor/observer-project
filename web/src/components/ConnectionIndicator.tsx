@@ -10,7 +10,7 @@ const labels: Record<RealtimeStatus, string> = {
 const dotStyles: Record<RealtimeStatus, string> = {
   connecting: 'bg-amber animate-pulse',
   connected: 'bg-success',
-  disconnected: 'bg-muted',
+  disconnected: 'bg-text-secondary',
 };
 
 export function ConnectionIndicator() {

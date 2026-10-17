@@ -49,7 +49,7 @@ export function SpacePage() {
       <div>
         <Link
           to="/"
-          className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text"
+          className="inline-flex items-center gap-1 text-body-sm text-text-secondary hover:text-text-primary"
         >
           <ArrowLeft className="size-4" />
           Все пространства
@@ -103,7 +103,7 @@ export function SpacePage() {
                 className="size-3 rounded-full"
                 style={{ backgroundColor: source.color }}
               />
-              <span className="text-text">{source.name}</span>
+              <span className="text-text-primary">{source.name}</span>
               <span className="ml-auto text-caption text-text-muted">
                 {source.visibility === 'PRIVATE' ? 'Личный' : 'Общий'}
               </span>
@@ -161,7 +161,7 @@ export function SpacePage() {
                     className={cn(
                       'size-7 rounded-full border-2 transition-transform',
                       color === c
-                        ? 'scale-110 border-text'
+                        ? 'scale-110 border-text-primary'
                         : 'border-transparent',
                     )}
                     style={{ backgroundColor: c }}

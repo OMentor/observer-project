@@ -196,7 +196,7 @@ export function HistoryPage() {
                         }}
                       >
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-text">
+                          <span className="text-text-primary">
                             {ACTION_LABELS[entry.action]}
                           </span>
                           <span className="text-caption text-text-muted">

@@ -65,7 +65,7 @@ export function ProfilePage() {
               'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
               theme === 'light'
                 ? 'border-accent text-accent'
-                : 'border-border text-muted hover:text-text',
+                : 'border-border text-text-secondary hover:text-text-primary',
             )}
           >
             <Sun className="size-4" />
@@ -79,7 +79,7 @@ export function ProfilePage() {
               'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
               theme === 'dark'
                 ? 'border-accent text-accent'
-                : 'border-border text-muted hover:text-text',
+                : 'border-border text-text-secondary hover:text-text-primary',
             )}
           >
             <Moon className="size-4" />
@@ -104,7 +104,7 @@ export function ProfilePage() {
               key={provider.id}
               className="flex items-center gap-3 rounded-lg border border-border px-4 py-3"
             >
-              <Cloud className="size-4 text-muted" />
+              <Cloud className="size-4 text-text-secondary" />
               <span className="text-body text-text-primary">{provider.label}</span>
               <span className="ml-auto rounded-full bg-bg px-2 py-0.5 text-caption text-text-muted">
                 Скоро
@@ -166,10 +166,10 @@ function ActivateCard() {
             key={preset}
             className="rounded-lg border border-border px-3 py-2 text-xs"
           >
-            <span className="font-medium text-text">
+            <span className="font-medium text-text-primary">
               {PRESET_LABELS[preset]}
             </span>
-            <p className="mt-0.5 text-muted">{PRESET_HINTS[preset]}</p>
+            <p className="mt-0.5 text-text-secondary">{PRESET_HINTS[preset]}</p>
           </div>
         ))}
       </div>
