@@ -1,4 +1,4 @@
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2 } from 'lucide-react';
 import type { ButtonHTMLAttributes } from 'react';
@@ -63,7 +63,7 @@ export function Button({
       {...props}
     >
       {loading && <Loader2 className="size-4 animate-spin" aria-hidden />}
-      {children}
+      <Slottable>{children}</Slottable>
     </Comp>
   );
 }
