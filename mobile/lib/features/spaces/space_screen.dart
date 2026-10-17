@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app.dart';
 import '../../core/models.dart';
 import '../../shared/hex_color.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 import '../events/event_form_sheet.dart';
 
 class SpaceScreen extends ConsumerWidget {
@@ -51,7 +52,7 @@ class SpaceScreen extends ConsumerWidget {
             )
           : null,
       body: spaceAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppProgressIndicator()),
         error: (error, _) => Center(child: Text('Ошибка: $error')),
         data: (space) {
           if (space.sources.isEmpty) {
@@ -159,7 +160,7 @@ class _SourceSection extends ConsumerWidget {
           eventsAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: AppProgressIndicator()),
             ),
             error: (error, _) => Padding(
               padding: const EdgeInsets.all(16),

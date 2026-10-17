@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 
 class TokensScreen extends ConsumerStatefulWidget {
   const TokensScreen({super.key, required this.spaceId});
@@ -52,7 +53,7 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
   Widget _buildList() {
     final tokensAsync = ref.watch(tokensProvider(widget.spaceId));
     return tokensAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: AppProgressIndicator()),
       error: (error, _) => Center(child: Text('Ошибка: $error')),
       data: (tokens) {
         final active = tokens.where((t) => !t.revoked).toList();

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 
 class SpacesScreen extends ConsumerWidget {
   const SpacesScreen({super.key});
@@ -19,7 +20,7 @@ class SpacesScreen extends ConsumerWidget {
         label: const Text('Пространство'),
       ),
       body: spaces.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppProgressIndicator()),
         error: (error, _) => Center(child: Text('Ошибка: $error')),
         data: (items) {
           if (items.isEmpty) {

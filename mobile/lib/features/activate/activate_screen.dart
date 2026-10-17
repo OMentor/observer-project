@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 
 class ActivateScreen extends ConsumerStatefulWidget {
   const ActivateScreen({super.key, required this.token});
@@ -105,7 +106,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
               ? const SizedBox(
                   height: 18,
                   width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: AppProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Активировать'),
         ),

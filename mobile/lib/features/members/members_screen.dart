@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 
 class MembersScreen extends ConsumerWidget {
   const MembersScreen({super.key, required this.spaceId});
@@ -21,7 +22,7 @@ class MembersScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Участники')),
       body: membersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppProgressIndicator()),
         error: (error, _) => Center(child: Text('Ошибка: $error')),
         data: (members) {
           if (members.isEmpty) {

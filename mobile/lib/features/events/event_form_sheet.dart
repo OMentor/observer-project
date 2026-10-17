@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 
 Future<bool?> showEventForm(
   BuildContext context, {
@@ -185,7 +186,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                   ? const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: AppProgressIndicator(strokeWidth: 2),
                     )
                   : Text(_isEditing ? 'Сохранить' : 'Создать'),
             ),
@@ -304,7 +305,7 @@ class _HistorySection extends ConsumerWidget {
         historyAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: LinearProgressIndicator(),
+            child: AppLinearProgressIndicator(),
           ),
           error: (error, _) => Text('История недоступна: $error'),
           data: (entries) {

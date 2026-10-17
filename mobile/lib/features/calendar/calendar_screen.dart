@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app.dart';
 import '../../core/models.dart';
 import '../../shared/hex_color.dart';
+import '../../shared/widgets/app_progress_indicator.dart';
 import '../../shared/widgets/offline_banner.dart';
 import '../../shared/widgets/realtime_indicator.dart';
 import '../events/event_form_sheet.dart';
@@ -79,7 +80,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ref.invalidate(spacesProvider);
         },
         child: eventsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: AppProgressIndicator()),
           error: (error, _) => Center(child: Text('Ошибка: $error')),
           data: (allEvents) {
             final events = allEvents.where((event) {

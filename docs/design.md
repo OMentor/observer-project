@@ -101,6 +101,8 @@
   `ease-spring` `cubic-bezier(0.34,1.56,0.64,1)`.
 - Анимации: `fade-in`, `fade-in-up`, `scale-in`, `slide-in-right`, `shimmer`,
   `weave`, `spin-slow`. Поддержан `prefers-reduced-motion`.
+  Mobile-эквивалент — `MediaQuery.disableAnimations`
+  (хелпер `mobile/lib/core/motion/motion.dart`).
 
 ---
 
@@ -153,10 +155,13 @@
 | Навигация | `NavigationBar`/drawer | разделы |
 | Календарь | агенда + виды День/Неделя/Месяц | события |
 | Индикатор сети/real-time | `OfflineBanner`, `RealtimeIndicator` | оффлайн, подключение |
+| Индикаторы прогресса | `AppProgressIndicator`/`AppLinearProgressIndicator` | уважают «уменьшить движение» (статичная дуга/полоса) |
 
 > Паритет дизайн-системы с Web — частичный: Mobile использует собственную
 > Material-тему; шрифты Onest/Lora и часть новых компонентов на
-> mobile не переносились.
+> mobile не переносились. При этом системная настройка «уменьшить движение»
+> поддержана: Flutter сам сворачивает конечные анимации (переходы, диалоги,
+> листы), а бесконечные индикаторы прогресса показываются статично.
 
 ---
 
@@ -190,7 +195,8 @@ FullCalendar (месяц/неделя/день), стилизация — `web/s
 - Таблицы: `scope="col"`, скрытые подписи колонок действий.
 - Индикатор подключения — `role="status"`, `aria-live="polite"`.
 - Ошибки — `role="alert"`.
-- Контраст ≥ 4.5:1; интерактив ≥ 24×24px; уважение `prefers-reduced-motion`.
+- Контраст ≥ 4.5:1; интерактив ≥ 24×24px; уважение `prefers-reduced-motion`
+  (Web) и `MediaQuery.disableAnimations` (Mobile).
 
 ---
 
