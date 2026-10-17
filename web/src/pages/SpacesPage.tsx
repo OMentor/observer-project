@@ -77,6 +77,7 @@ export function SpacesPage() {
             <Card
               key={space.id}
               interactive
+              data-testid="space-card"
               className="animate-fade-in-up"
               style={{ animationDelay: `${index * 30}ms`, animationFillMode: 'backwards' }}
             >

@@ -21,23 +21,23 @@ async function currentTheme(page: Page): Promise<'dark' | 'light'> {
 test.describe('Плетение · UI smoke', () => {
   test('вход демо-пользователем открывает пространства', async ({ page }) => {
     await login(page);
-    await expect(page.getByText('Demo')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Личное' })).toBeVisible();
   });
 
   test('переключатель темы в шапке меняет тему и сохраняется', async ({
     page,
   }) => {
     await login(page);
-    await expect(await currentTheme(page)).toBe('light');
+    await expect(await currentTheme(page)).toBe('dark');
 
-    await page.getByRole('button', { name: 'Тёмная тема' }).click();
-    await expect(page.locator('html')).toHaveClass(/dark/);
+    await page.getByRole('button', { name: /Переключить тему/ }).click();
+    await expect(await currentTheme(page)).toBe('light');
 
     await page.reload();
     await expect(
       page.getByRole('heading', { name: 'Пространства' }),
     ).toBeVisible();
-    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('html')).toHaveClass(/light/);
   });
 
   test('профиль: выбор темы сегментами', async ({ page }) => {
@@ -92,8 +92,8 @@ test.describe('Плетение · UI smoke', () => {
       .click();
 
     const card = page
-      .getByRole('heading', { name })
-      .locator('xpath=ancestor::div[contains(@class,"group")]');
+      .getByTestId('space-card')
+      .filter({ has: page.getByRole('heading', { name }) });
     await expect(card).toBeVisible();
 
     await card.getByRole('button', { name: 'Удалить' }).click();
