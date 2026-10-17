@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { LogOut, Plus, Moon, Sun, Monitor, type LucideIcon } from 'lucide-react';
@@ -7,6 +6,7 @@ import { fetchSpaces, logoutRequest } from '@/lib/services';
 import { navItems } from '@/lib/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useThemeStore } from '@/store/theme';
+import { useViewTransitionNavigate } from '@/hooks/useViewTransitionNavigate';
 
 export interface CommandPaletteProps {
   open: boolean;
@@ -14,7 +14,7 @@ export interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
-  const navigate = useNavigate();
+  const navigate = useViewTransitionNavigate();
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clear = useAuthStore((s) => s.clear);
   const setTheme = useThemeStore((s) => s.setTheme);

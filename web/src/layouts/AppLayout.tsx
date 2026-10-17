@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import {
   Bell,
   CalendarDays,
@@ -16,6 +16,7 @@ import { navItems } from '@/lib/navigation';
 import { useAuthStore } from '@/store/auth';
 import { logoutRequest } from '@/lib/services';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useViewTransitionNavigate } from '@/hooks/useViewTransitionNavigate';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { SyncIndicator } from '@/components/SyncIndicator';
@@ -74,7 +75,7 @@ function NavItem({
 }
 
 export function AppLayout({ children }: { children?: ReactNode }) {
-  const navigate = useNavigate();
+  const navigate = useViewTransitionNavigate();
   const user = useAuthStore((s) => s.user);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clear = useAuthStore((s) => s.clear);
