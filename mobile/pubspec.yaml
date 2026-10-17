@@ -66,6 +66,24 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  fonts:
+    - family: Onest
+      fonts:
+        - asset: assets/fonts/Onest-400.ttf
+          weight: 400
+        - asset: assets/fonts/Onest-500.ttf
+          weight: 500
+        - asset: assets/fonts/Onest-600.ttf
+          weight: 600
+        - asset: assets/fonts/Onest-700.ttf
+          weight: 700
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-400.ttf
+          weight: 400
+        - asset: assets/fonts/Lora-600.ttf
+          weight: 600
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
