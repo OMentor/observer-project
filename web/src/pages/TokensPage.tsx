@@ -122,7 +122,7 @@ export function TokensPage() {
     mutationFn: async () => {
       const expires = expiresAt
         ? new Date(`${expiresAt}T23:59:59`).toISOString()
-        : null;
+        : undefined;
       if (count > 1) {
         return batchTokens({
           space_id: selectedSpaceId,

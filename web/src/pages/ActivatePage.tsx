@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
@@ -31,11 +31,17 @@ function errorMessage(error: unknown): string {
 export function ActivatePage() {
   const { token = '' } = useParams();
   const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
   const [name, setName] = useState(user?.name ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation<TokenActivation, unknown, void>({
     mutationFn: () => activateToken(token, { name: name.trim() || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      queryClient.invalidateQueries({ queryKey: ['members'] });
+      queryClient.invalidateQueries({ queryKey: ['tokens'] });
+    },
     onError: (err) => setError(errorMessage(err)),
   });
 

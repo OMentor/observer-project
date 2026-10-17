@@ -22,6 +22,7 @@ export function LoginPage() {
   const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
   const [serverError, setServerError] = useState<string | null>(null);
+  const from = (location.state as { from?: string } | null)?.from;
 
   const {
     register,
@@ -34,8 +35,7 @@ export function LoginPage() {
     try {
       const session = await loginRequest(values.email, values.password);
       setSession(session);
-      const from = (location.state as { from?: string } | null)?.from ?? '/';
-      navigate(from, { replace: true });
+      navigate(from ?? '/', { replace: true });
     } catch {
       setServerError('Неверный email или пароль');
     }
@@ -84,7 +84,7 @@ export function LoginPage() {
 
         <p className="text-center text-body-sm text-text-secondary">
           Нет аккаунта?{' '}
-          <Link to="/register" className="text-accent hover:underline">
+          <Link to="/register" state={{ from }} className="text-accent hover:underline">
             Зарегистрироваться
           </Link>
         </p>

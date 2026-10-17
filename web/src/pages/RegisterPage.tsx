@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { registerRequest } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
@@ -20,8 +20,10 @@ type FormValues = z.infer<typeof schema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
   const [serverError, setServerError] = useState<string | null>(null);
+  const from = (location.state as { from?: string } | null)?.from;
 
   const {
     register,
@@ -34,7 +36,7 @@ export function RegisterPage() {
     try {
       const session = await registerRequest(values);
       setSession(session);
-      navigate('/', { replace: true });
+      navigate(from ?? '/', { replace: true });
     } catch {
       setServerError('Не удалось зарегистрироваться (возможно, email занят)');
     }
@@ -90,7 +92,7 @@ export function RegisterPage() {
 
         <p className="text-center text-body-sm text-text-secondary">
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="text-accent hover:underline">
+          <Link to="/login" state={{ from }} className="text-accent hover:underline">
             Войти
           </Link>
         </p>
