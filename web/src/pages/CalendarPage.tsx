@@ -34,7 +34,7 @@ function renderEventContent(arg: EventContentArg) {
       }}
     >
       {!arg.event.allDay && (
-        <div className="truncate text-text-muted">{arg.timeText}</div>
+        <div className="truncate text-text-secondary">{arg.timeText}</div>
       )}
       <div className="truncate font-medium text-text-primary">
         {arg.event.title}

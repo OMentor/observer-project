@@ -21,6 +21,7 @@ import { logoutRequest } from '@/lib/services';
 import { useRealtime } from '@/hooks/useRealtime';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
+import { SyncIndicator } from '@/components/SyncIndicator';
 import { Toaster } from '@/components/Toaster';
 import { SearchInput } from '@/components/SearchInput';
 import { Logo } from '@/components/ui/logo';
@@ -168,6 +169,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
 
         <div className="flex-1" />
 
+        <SyncIndicator />
         <ConnectionIndicator />
         <button
           type="button"

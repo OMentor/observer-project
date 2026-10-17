@@ -99,4 +99,17 @@ test.describe('Плетение · UI smoke', () => {
     await card.getByRole('button', { name: 'Удалить' }).click();
     await expect(page.getByRole('heading', { name })).toBeHidden();
   });
+
+  test('индикатор ошибки синхронизации появляется, когда API недоступен', async ({
+    page,
+  }) => {
+    await login(page);
+
+    await page.route('http://localhost:3000/**', (route) => route.abort());
+    await page.getByRole('link', { name: 'Календарь' }).click();
+
+    await expect(
+      page.getByRole('status', { name: 'Ошибка синхронизации' }),
+    ).toBeVisible({ timeout: 25_000 });
+  });
 });
