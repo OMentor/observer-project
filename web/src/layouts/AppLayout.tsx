@@ -119,12 +119,15 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   };
 
   const items = useMemo(() => {
+    const visible = navItems.filter(
+      (item) => !item.adminOnly || user?.role === 'ADMIN',
+    );
     const q = query.trim().toLowerCase();
     if (!q) {
-      return navItems;
+      return visible;
     }
-    return navItems.filter((item) => item.label.toLowerCase().includes(q));
-  }, [query]);
+    return visible.filter((item) => item.label.toLowerCase().includes(q));
+  }, [query, user?.role]);
 
   const nav = (isCollapsed: boolean) => (
     <nav aria-label="Основная навигация" className="flex flex-col gap-1">

@@ -119,3 +119,21 @@ export type TokenActivation = {
   space_id: string;
   preset: Preset;
 };
+
+export type FunnelStepKey =
+  | 'signup'
+  | 'space_created'
+  | 'token_created'
+  | 'token_activated'
+  | 'event_created';
+
+export type FunnelStep = {
+  key: FunnelStepKey;
+  label: string;
+  count: number;
+};
+
+export type FunnelReport = {
+  steps: FunnelStep[];
+  generated_at: string;
+};

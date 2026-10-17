@@ -16,6 +16,7 @@ export interface CommandPaletteProps {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useViewTransitionNavigate();
   const refreshToken = useAuthStore((s) => s.refreshToken);
+  const role = useAuthStore((s) => s.user?.role);
   const clear = useAuthStore((s) => s.clear);
   const setTheme = useThemeStore((s) => s.setTheme);
   const [query, setQuery] = useState('');
@@ -64,14 +65,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         </Command.Empty>
 
         <Command.Group heading="Навигация">
-          {navItems.map((item) => (
-            <PaletteItem
-              key={item.to}
-              icon={item.icon}
-              label={item.label}
-              onSelect={() => run(() => navigate(item.to))}
-            />
-          ))}
+          {navItems
+            .filter((item) => !item.adminOnly || role === 'ADMIN')
+            .map((item) => (
+              <PaletteItem
+                key={item.to}
+                icon={item.icon}
+                label={item.label}
+                onSelect={() => run(() => navigate(item.to))}
+              />
+            ))}
         </Command.Group>
 
         <Command.Group heading="Пространства">

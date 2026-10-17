@@ -17,6 +17,20 @@ async function main() {
     },
   });
 
+  const admin_password_hash = await bcrypt.hash('admin12345', 10);
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@pletenie.local' },
+    update: { role: 'ADMIN' },
+    create: {
+      name: 'Admin',
+      email: 'admin@pletenie.local',
+      password_hash: admin_password_hash,
+      timezone: 'Europe/Moscow',
+      role: 'ADMIN',
+    },
+  });
+  console.log(`Seeded admin ${admin.email}`);
+
   const existingSpace = await prisma.space.findFirst({
     where: { owner_id: user.id, name: 'Личное' },
   });

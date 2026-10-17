@@ -6,6 +6,7 @@ import type {
   EventPage,
   EventPayload,
   EventQuery,
+  FunnelReport,
   Member,
   Preset,
   Space,
@@ -179,5 +180,10 @@ export type DemoSeedResult = {
 
 export async function seedDemoData() {
   const { data } = await api.post<DemoSeedResult>('/demo/seed');
+  return data;
+}
+
+export async function fetchFunnel() {
+  const { data } = await api.get<FunnelReport>('/analytics/funnel');
   return data;
 }
