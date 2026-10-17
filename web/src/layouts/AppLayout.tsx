@@ -3,41 +3,29 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Bell,
   CalendarDays,
-  History,
-  KeyRound,
-  LayoutGrid,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
   UserRound,
-  Users,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { navItems } from '@/lib/navigation';
 import { useAuthStore } from '@/store/auth';
 import { logoutRequest } from '@/lib/services';
 import { useRealtime } from '@/hooks/useRealtime';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { SyncIndicator } from '@/components/SyncIndicator';
+import { CommandPalette } from '@/components/CommandPalette';
 import { Toaster } from '@/components/Toaster';
 import { SearchInput } from '@/components/SearchInput';
 import { Logo } from '@/components/ui/logo';
 import { Avatar } from '@/components/ui/avatar';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
-
-const navItems = [
-  { to: '/', label: 'Пространства', icon: LayoutGrid, end: true },
-  { to: '/calendar', label: 'Календарь', icon: CalendarDays },
-  { to: '/tokens', label: 'Токены', icon: KeyRound },
-  { to: '/members', label: 'Участники', icon: Users },
-  { to: '/history', label: 'История', icon: History },
-  { to: '/settings', label: 'Настройки', icon: Settings },
-  { to: '/profile', label: 'Профиль', icon: UserRound },
-];
 
 function NavItem({
   to,
@@ -93,8 +81,20 @@ export function AppLayout({ children }: { children?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState('');
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useRealtime();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((value) => !value);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -159,7 +159,10 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           </span>
         </div>
 
-        <div className="ml-2 hidden max-w-[480px] flex-1 md:block">
+        <div
+          className="ml-2 hidden max-w-[480px] flex-1 cursor-text md:block"
+          onClick={() => setPaletteOpen(true)}
+        >
           <SearchInput
             value={query}
             onChange={setQuery}
@@ -269,6 +272,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           </div>
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Toaster />
     </div>
   );
