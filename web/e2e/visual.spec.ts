@@ -73,6 +73,12 @@ test.describe('Плетение · visual regression', () => {
           await expect(
             page.getByRole('heading', { name: target.heading }).first(),
           ).toBeVisible();
+          if (target.name === 'spaces') {
+            await page
+              .getByTestId('onboarding')
+              .waitFor({ state: 'visible', timeout: 3000 })
+              .catch(() => undefined);
+          }
           await settle(page);
           await expect(page).toHaveScreenshot(`${theme}-${target.name}.png`, {
             fullPage: true,

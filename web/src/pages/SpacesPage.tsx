@@ -5,6 +5,14 @@ import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { createSpace, deleteSpace, fetchSpaces } from '@/lib/services';
 import { useAuthStore } from '@/store/auth';
 import { colorForName } from '@/lib/palette';
+import {
+  buildOnboardingSteps,
+  dismissOnboarding,
+  isOnboardingComplete,
+  isOnboardingDismissed,
+} from '@/lib/onboarding';
+import { useOnboardingProgress } from '@/hooks/useOnboarding';
+import { OnboardingChecklist } from '@/features/onboarding/OnboardingChecklist';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
@@ -22,11 +30,22 @@ export function SpacesPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    isOnboardingDismissed(),
+  );
 
   const { data: spaces = [], isLoading } = useQuery({
     queryKey: ['spaces'],
     queryFn: fetchSpaces,
   });
+
+  const onboarding = useOnboardingProgress();
+  const onboardingSteps = buildOnboardingSteps(onboarding);
+  const showOnboarding =
+    !onboarding.isLoading &&
+    onboarding.spacesCount > 0 &&
+    !onboardingDismissed &&
+    !isOnboardingComplete(onboardingSteps);
 
   const createMutation = useMutation({
     mutationFn: createSpace,
@@ -56,6 +75,17 @@ export function SpacesPage() {
           Создать
         </Button>
       </div>
+
+      {showOnboarding && (
+        <OnboardingChecklist
+          steps={onboardingSteps}
+          onCreateSpace={() => setOpen(true)}
+          onDismiss={() => {
+            dismissOnboarding();
+            setOnboardingDismissed(true);
+          }}
+        />
+      )}
 
       {isLoading ? (
         <p className="text-body-sm text-text-secondary">Загрузка…</p>
