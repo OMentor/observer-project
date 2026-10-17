@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { EventDialog } from '@/components/EventDialog';
 import { QuarterView } from '@/features/calendar/views/quarter/QuarterView';
+import { YearMiniMap } from '@/features/calendar/views/year/YearMiniMap';
 
 function renderEventContent(arg: EventContentArg) {
   const color = (arg.event.backgroundColor as string) ?? 'var(--accent)';
@@ -60,6 +61,9 @@ export function CalendarPage() {
   const [range, setRange] = useState<{ from?: string; to?: string }>({});
   const calendarRef = useRef<FullCalendar>(null);
   const [quarterMode, setQuarterMode] = useState(false);
+  const [miniYear, setMiniYear] = useState(() => new Date().getFullYear());
+  const [miniMonth, setMiniMonth] = useState<number | null>(null);
+  const [today] = useState(() => new Date());
 
   const { data: spaces = [] } = useQuery({
     queryKey: ['spaces'],
@@ -109,6 +113,25 @@ export function CalendarPage() {
   });
 
   const events = page?.items ?? [];
+
+  const { data: yearPage } = useQuery({
+    queryKey: [
+      'event-year',
+      { spaceFilter, effectiveSourceFilter, search, miniYear },
+    ],
+    queryFn: () =>
+      fetchEventPage({
+        space_id: spaceFilter || undefined,
+        source_id: effectiveSourceFilter || undefined,
+        q: search.trim() || undefined,
+        from: new Date(miniYear, 0, 1).toISOString(),
+        to: new Date(miniYear + 1, 0, 1).toISOString(),
+        pageSize: 500,
+      }),
+    enabled: sources.length > 0,
+  });
+
+  const yearEvents = yearPage?.items ?? [];
 
   const colorBySource = useMemo(() => {
     const map = new Map<string, string>();
@@ -234,6 +257,14 @@ export function CalendarPage() {
     setSearch('');
   };
 
+  const goToMonth = (month: Date) => {
+    setMiniMonth(month.getMonth());
+    setQuarterMode(false);
+    const api = calendarRef.current?.getApi();
+    api?.changeView('dayGridMonth');
+    api?.gotoDate(month);
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -271,6 +302,24 @@ export function CalendarPage() {
         </div>
       </div>
 
+      <div className="flex flex-col gap-6 xl:flex-row">
+        {sources.length > 0 && (
+          <aside className="hidden w-64 shrink-0 xl:block">
+            <div className="sticky top-6">
+              <YearMiniMap
+                year={miniYear}
+                events={yearEvents}
+                today={today}
+                selectedMonth={miniMonth}
+                onSelectMonth={goToMonth}
+                onPrevYear={() => setMiniYear((value) => value - 1)}
+                onNextYear={() => setMiniYear((value) => value + 1)}
+              />
+            </div>
+          </aside>
+        )}
+
+        <div className="min-w-0 flex-1 space-y-6">
       <div className="flex flex-wrap items-center gap-3 rounded-lg bg-bg-surface p-3 shadow-card">
         <Select
           containerClassName="w-[200px]"
@@ -430,6 +479,9 @@ export function CalendarPage() {
           onOpenEvent={(event) => openEdit(event.id)}
         />
       )}
+
+        </div>
+      </div>
 
       <EventDialog
         open={dialogOpen}
