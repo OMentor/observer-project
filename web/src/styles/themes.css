@@ -11,8 +11,9 @@
 
   --text-primary: #f5f3ef;
   --text-secondary: #a8a29e;
-  --text-muted: #6b6b72;
+  --text-muted: #7d7872;
   --text-inverse: #1a1a1e;
+  --on-accent: #ffffff;
 
   --accent: #5b5fef;
   --accent-hover: #6b6fef;
@@ -45,8 +46,9 @@
 
   --text-primary: #1a1a1e;
   --text-secondary: #6b6660;
-  --text-muted: #a8a29e;
+  --text-muted: #8a837c;
   --text-inverse: #faf8f5;
+  --on-accent: #ffffff;
 
   --accent: #4a4ee0;
   --accent-hover: #5a5ee8;

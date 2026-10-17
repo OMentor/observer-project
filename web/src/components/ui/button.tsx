@@ -10,18 +10,18 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-accent text-text-primary hover:bg-accent-hover active:bg-accent-active',
+          'bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-active',
         secondary:
           'border border-border bg-bg-elevated text-text-primary hover:bg-bg-elevated/80',
         ghost:
           'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
         danger:
-          'bg-danger text-text-primary hover:bg-danger-hover active:bg-danger-active',
+          'bg-danger text-on-accent hover:bg-danger-hover active:bg-danger-active',
         token:
           'bg-amber text-text-inverse hover:bg-amber-hover active:bg-amber-active',
         /* Обратная совместимость */
         default:
-          'bg-accent text-text-primary hover:bg-accent-hover active:bg-accent-active',
+          'bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-active',
         outline:
           'border border-border bg-bg-elevated text-text-primary hover:bg-bg-elevated/80',
       },

@@ -42,7 +42,7 @@
 .fc .fc-button-primary:not(:disabled):active {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--text-primary);
+  color: var(--on-accent);
 }
 
 .fc .fc-col-header-cell {
@@ -61,7 +61,7 @@
 }
 
 .fc .fc-day-today .fc-daygrid-day-number {
-  color: var(--accent);
+  color: var(--text-primary);
   font-weight: 600;
 }
 

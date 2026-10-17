@@ -86,7 +86,7 @@ export function MembersPage() {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-bg-surface text-left text-caption text-text-muted">
+            <thead className="bg-bg-surface text-left text-caption text-text-secondary">
               <tr>
                 <th scope="col" className="px-4 py-2 font-medium">
                   Участник

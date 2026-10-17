@@ -43,6 +43,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-inverse: var(--text-inverse);
+  --color-on-accent: var(--on-accent);
 
   /* Обратная совместимость (старые имена токенов) */
   --color-surface: var(--bg-surface);
