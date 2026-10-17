@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { EventDialog } from '@/components/EventDialog';
+import { QuarterView } from '@/features/calendar/views/quarter/QuarterView';
 
 function renderEventContent(arg: EventContentArg) {
   const color = (arg.event.backgroundColor as string) ?? 'var(--accent)';
@@ -57,6 +58,8 @@ export function CalendarPage() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [search, setSearch] = useState('');
   const [range, setRange] = useState<{ from?: string; to?: string }>({});
+  const calendarRef = useRef<FullCalendar>(null);
+  const [quarterMode, setQuarterMode] = useState(false);
 
   const { data: spaces = [] } = useQuery({
     queryKey: ['spaces'],
@@ -243,13 +246,23 @@ export function CalendarPage() {
           </p>
         </div>
         <div className="text-right">
-          <Button
-            onClick={() => openCreate()}
-            disabled={sources.length === 0 || !canCreate}
-          >
-            <Plus className="size-4" />
-            Событие
-          </Button>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setQuarterMode((value) => !value)}
+              disabled={sources.length === 0}
+              aria-pressed={quarterMode}
+            >
+              {quarterMode ? 'Обычный вид' : 'Квартал'}
+            </Button>
+            <Button
+              onClick={() => openCreate()}
+              disabled={sources.length === 0 || !canCreate}
+            >
+              <Plus className="size-4" />
+              Событие
+            </Button>
+          </div>
           {sources.length > 0 && !canCreate && (
             <p className="mt-1 text-caption text-text-muted">
               Нет источников, доступных для создания событий.
@@ -352,52 +365,71 @@ export function CalendarPage() {
         </div>
       )}
 
-      <div className="rounded-lg bg-bg-surface p-2 shadow-card sm:p-4">
-        {sources.length === 0 ? (
-          <p className="py-16 text-center text-body-sm text-text-secondary">
-            Сначала создайте пространство и источник.
-          </p>
-        ) : (
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            buttonText={{
-              today: 'Сегодня',
-              month: 'Месяц',
-              week: 'Неделя',
-              day: 'День',
-            }}
-            height="auto"
-            locale="ru"
-            locales={[ruLocale]}
-            firstDay={1}
-            editable
-            events={calendarEvents}
-            eventContent={renderEventContent}
-            datesSet={(info) =>
-              setRange((prev) =>
-                prev.from === info.startStr && prev.to === info.endStr
-                  ? prev
-                  : { from: info.startStr, to: info.endStr },
-              )
-            }
-            dateClick={onDateClick}
-            eventClick={onEventClick}
-            eventDrop={onEventDrop}
-            eventResize={onEventResize}
-            eventTimeFormat={{
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            }}
-          />
-        )}
+      <div className={quarterMode ? 'hidden' : undefined}>
+        <div className="rounded-lg bg-bg-surface p-2 shadow-card sm:p-4">
+          {sources.length === 0 ? (
+            <p className="py-16 text-center text-body-sm text-text-secondary">
+              Сначала создайте пространство и источник.
+            </p>
+          ) : (
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay',
+              }}
+              buttonText={{
+                today: 'Сегодня',
+                month: 'Месяц',
+                week: 'Неделя',
+                day: 'День',
+              }}
+              height="auto"
+              locale="ru"
+              locales={[ruLocale]}
+              firstDay={1}
+              editable
+              events={calendarEvents}
+              eventContent={renderEventContent}
+              datesSet={(info) =>
+                setRange((prev) =>
+                  prev.from === info.startStr && prev.to === info.endStr
+                    ? prev
+                    : { from: info.startStr, to: info.endStr },
+                )
+              }
+              dateClick={onDateClick}
+              eventClick={onEventClick}
+              eventDrop={onEventDrop}
+              eventResize={onEventResize}
+              eventTimeFormat={{
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              }}
+            />
+          )}
+        </div>
       </div>
+
+      {sources.length > 0 && quarterMode && (
+        <QuarterView
+          events={events}
+          sources={sources}
+          loading={isLoading}
+          onOpenMonth={(month) => {
+            setQuarterMode(false);
+            const api = calendarRef.current?.getApi();
+            api?.changeView('dayGridMonth');
+            api?.gotoDate(month);
+          }}
+          onAddEvent={(date) => openCreate(date)}
+          onOpenEvent={(event) => openEdit(event.id)}
+        />
+      )}
 
       <EventDialog
         open={dialogOpen}
