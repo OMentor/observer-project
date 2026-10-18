@@ -147,21 +147,59 @@
 
 ### 5.3 Mobile
 
-| Компонент | Реализация | Назначение |
-|-----------|------------|------------|
-| Кнопка | `FilledButton`/`OutlinedButton` | primary/outline |
-| Поле ввода | `TextField` | default/focus/error/disabled |
-| Лист/диалог | `showModalBottomSheet`/`showDialog` | формы, подтверждения |
-| Навигация | `NavigationBar`/drawer | разделы |
-| Календарь | агенда + виды День/Неделя/Месяц | события |
-| Индикатор сети/real-time | `OfflineBanner`, `RealtimeIndicator` | оффлайн, подключение |
-| Индикаторы прогресса | `AppProgressIndicator`/`AppLinearProgressIndicator` | уважают «уменьшить движение» (статичная дуга/полоса) |
+**Матрица паритета.** Дизайн-система Web перенесена на Flutter целиком:
+токены, тема Material, примитивы, композиты, логотип и экраны.
 
-> Паритет дизайн-системы с Web — частичный: Mobile использует собственную
-> Material-тему; шрифты Onest/Lora и часть новых компонентов на
-> mobile не переносились. При этом системная настройка «уменьшить движение»
-> поддержана: Flutter сам сворачивает конечные анимации (переходы, диалоги,
-> листы), а бесконечные индикаторы прогресса показываются статично.
+| Web | Mobile | Примечание |
+|-----|--------|------------|
+| токены (`:root` / `[data-theme]`) | `core/theme/app_tokens.dart` (`AppColors`, `AppTypography`, `AppSpacing`, `AppRadius`, `AppShadows`, `AppMotion`) | значения совпадают с CSS-переменными (тёмная/светлая) |
+| Material-компоненты | `core/theme/app_theme.dart` | ~25 компонентов темизированы из токенов; Onest + Lora |
+| `button.tsx` | `app_button.dart` | primary/secondary/ghost/danger/token, sm/md/lg, `loading`, `expanded` |
+| `input.tsx` / `textarea.tsx` | `app_input.dart` (`AppTextField`, `AppTextarea`) | рамка ошибки, префикс/суффикс |
+| label + helper/error | `app_field.dart`, `app_label.dart` | подпись, `required`, ошибка |
+| `select.tsx` | `app_select.dart` | `DropdownButtonFormField` + кастомная стрелка |
+| `search-input` | `app_search_input.dart` | лупа слева, подсказка «Поиск…» |
+| `icon-button.tsx` | `app_icon_button.dart` | ghost/danger, обязательный `label` (36×36) |
+| `tooltip.tsx` | `app_tooltip.dart` | по сторонам |
+| `card.tsx` | `app_card.dart` | default / interactive |
+| `badge.tsx` | `app_badge.dart` | success/accent/amber/danger/muted/neutral |
+| `preset-badge.tsx` | `preset_badge.dart` | FULL/OWN/BUSY/READ |
+| `avatar.tsx` | `app_avatar.dart` | инициалы, цвет по имени |
+| `chip.tsx` | `app_chip.dart` | статический / с удалением |
+| `skeleton.tsx` | `app_skeleton.dart` | shimmer, статичен при «уменьшить движение» |
+| `empty-state.tsx` | `app_empty_state.dart` + `app_error_state.dart`, `app_loading_state.dart` | пунктирная рамка, иконка, действие, «Повторить» |
+| `dropdown.tsx` | `app_dropdown.dart` | опасный пункт |
+| `dialog.tsx` | `app_dialogs.dart` (`showAppConfirm`, `showAppPrompt`) | подтверждение с `danger`, ввод с валидацией |
+| `logo.tsx` + `logo-strands.ts` | `app_logo.dart` | CustomPainter: 4 нити 32×32, градиент accent→amber, `weave` 720 мс (каскад 90 мс) |
+| `Toaster.tsx` | `shared/toast.dart` + `app_toast_host.dart` | тона info/success/warning/danger, TTL 5 с, хост в `MaterialApp.builder` |
+| `ConnectionIndicator` | `realtime_indicator.dart` | «Онлайн» / «Подключение…» / «Офлайн» |
+| — | `app_section_header.dart`, `app_list_card.dart` | заголовки разделов, карточки-списки |
+| строки событий календаря | `app_event_tile.dart` | цветовая метка источника, время/место, маска «Занято» (не нажимается) |
+| `palette.ts`, `presets.ts`, `errors.ts`, `formatDate/Time` | `shared/palette.dart`, `shared/access.dart`, `shared/format.dart`, `shared/hex_color.dart` | те же 6 цветов, пресеты, форматирование |
+| `checkbox.tsx` | — | не перенесён: в Mobile-интерфейсе не используется |
+
+Состояния и паттерны (§6) реализованы одинаково на обеих платформах:
+пустое состояние — `AppEmptyState`, загрузка — `AppLoadingState`/скелетоны,
+ошибка — `AppErrorState` + `danger` рядом с формой, уведомления — тосты.
+
+**Экраны.** Каркас — `shared/widgets/home_shell.dart` (`NavigationBar`,
+три раздела: календарь, пространства, профиль; действия в шапке экрана
+пространства). Вход, регистрация, активация, календарь, форма события
+(bottom sheet + история), пространства, пространство (источники и события),
+участники (смена пресета, исключение), токены (создание/пакет/отзыв,
+единоразовый показ с копированием), профиль (тема, активация токена, выход)
+переведены на компоненты DS: `AppButton`, `AppField`, `AppSelect`,
+`AppSearchInput`, `AppEmptyState/ErrorState/LoadingState`, `AppEventTile`,
+`AppListCard`, `showAppConfirm`/`showAppPrompt`, тосты вместо `SnackBar`.
+
+**Проверка.** `flutter analyze` — 0 замечаний; `flutter test` — 90 тестов,
+включая golden-эталоны `mobile/test/golden/` (примитивы и композиты в тёмной
+и светлой темах, шрифты Onest/Lora).
+
+> Системная настройка «уменьшить движение» поддержана: Flutter сворачивает
+> конечные анимации (переходы, диалоги, листы), а бесконечные индикаторы
+> прогресса показываются статично (`Motion.reduce`). Знак «Плетение» при
+> уменьшении движения сразу показан целиком.
 
 ---
 
@@ -170,7 +208,8 @@
 - Пустое состояние — `EmptyState` (иконка, заголовок, описание, действие).
 - Загрузка — скелетоны (`shimmer`) или спиннер в кнопке (`loading`).
 - Ошибка — `danger`-цвет рядом с формой, `role="alert"`.
-- Уведомления — тосты (Web, top-right) / snackbar (Mobile).
+- Уведомления — тосты: Web (`Toaster`, top-right) и Mobile (`AppToastHost`,
+  поверх контента), автоскрытие 5 с, тона info/success/warning/danger.
 - Приватность источника — метка «Общий»/«Личный».
 
 ---
@@ -248,7 +287,8 @@ FullCalendar (месяц/неделя/день), стилизация — `web/s
 - **Индикатор подключения** (Web `ConnectionIndicator`, Mobile `RealtimeIndicator`):
   «Подключение…» (amber, пульсация) / «Онлайн» (success) / «Офлайн» (muted).
 - **Уведомления**: Web — тосты (`Toaster`, top-right, автоскрытие 5 c, тона
-  info/success/warning/danger); Mobile — snackbar.
+  info/success/warning/danger); Mobile — тосты (`AppToastHost`, те же тона
+  и TTL).
 - Уведомления не показываются для собственных действий (сравнение `actor_id`).
 - Обновление данных — фоном (инвалидация запросов), без «прыжков» интерфейса.
 
@@ -266,7 +306,6 @@ FullCalendar (месяц/неделя/день), стилизация — `web/s
 
 - Отрисовка иллюстративного логотипа и полных макетов экранов в Figma (внешний
   артефакт; Figma недоступна).
-- Полный перенос дизайн-системы на Mobile (шрифты, недостающие компоненты).
 - Диаграмма и UI состояний конфликтов синхронизации (Этап 6).
 - Переходы между экранами (page transitions) — сейчас только базовые анимации.
-- Visual-regression / скриншот-тесты.
+- `checkbox` на Mobile — не перенесён (в интерфейсе не используется).
