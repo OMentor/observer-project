@@ -58,6 +58,10 @@ class AppColors {
   final Color dangerActive;
   final Color dangerMuted;
 
+  /// Токены активной темы (по [Theme] в контексте).
+  static AppColors of(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? dark : light;
+
   /// Тёмный текст на средне-ярких плашках (amber/success).
   static const Color _onTint = Color(0xFF16161A);
 
