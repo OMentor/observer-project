@@ -3,7 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/format.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_dialogs.dart';
+import '../../shared/widgets/app_field.dart';
+import '../../shared/widgets/app_input.dart';
 import '../../shared/widgets/app_progress_indicator.dart';
+import '../../shared/widgets/app_select.dart';
+import '../../shared/widgets/app_switch.dart';
 
 Future<bool?> showEventForm(
   BuildContext context, {
@@ -11,18 +20,21 @@ Future<bool?> showEventForm(
   CalendarEvent? event,
   String? initialSourceId,
   DateTime? initialDate,
+  bool canDelete = false,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: EventFormSheet(
         sources: sources,
         event: event,
         initialSourceId: initialSourceId,
         initialDate: initialDate,
+        canDelete: canDelete,
       ),
     ),
   );
@@ -35,12 +47,14 @@ class EventFormSheet extends ConsumerStatefulWidget {
     this.event,
     this.initialSourceId,
     this.initialDate,
+    this.canDelete = false,
   });
 
   final List<Source> sources;
   final CalendarEvent? event;
   final String? initialSourceId;
   final DateTime? initialDate;
+  final bool canDelete;
 
   @override
   ConsumerState<EventFormSheet> createState() => _EventFormSheetState();
@@ -88,8 +102,14 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.x5,
+        0,
+        AppSpacing.x5,
+        AppSpacing.x6,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -97,99 +117,119 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
           children: [
             Text(
               _isEditing ? 'Событие' : 'Новое событие',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: AppTypography.h3.copyWith(color: c.textPrimary),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Название'),
+            const SizedBox(height: AppSpacing.x4),
+            AppField(
+              label: 'Название',
+              required: true,
+              child: AppTextField(controller: _title),
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _sourceId.isEmpty ? null : _sourceId,
-              decoration: const InputDecoration(labelText: 'Источник'),
-              items: widget.sources
-                  .map(
-                    (s) => DropdownMenuItem(value: s.id, child: Text(s.name)),
-                  )
-                  .toList(),
-              onChanged: _isEditing
-                  ? null
-                  : (value) => setState(() => _sourceId = value ?? ''),
+            const SizedBox(height: AppSpacing.x3),
+            AppField(
+              label: 'Источник',
+              child: AppSelect<String>(
+                value: _sourceId.isEmpty ? null : _sourceId,
+                items: [
+                  for (final source in widget.sources)
+                    AppSelectItem(value: source.id, label: source.name),
+                ],
+                onChanged: _isEditing
+                    ? null
+                    : (value) => setState(() => _sourceId = value ?? ''),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.x3),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: AppButton(
+                    label: formatDate(_date),
+                    icon: Icons.event,
+                    variant: AppButtonVariant.secondary,
+                    expanded: true,
                     onPressed: _pickDate,
-                    icon: const Icon(Icons.event),
-                    label: Text(_formatDate(_date)),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Switch(
+                const SizedBox(width: AppSpacing.x3),
+                AppSwitch(
                   value: _allDay,
+                  label: 'Весь день',
                   onChanged: (value) => setState(() => _allDay = value),
                 ),
-                const Text('Весь день'),
+                const SizedBox(width: AppSpacing.x2),
+                Text(
+                  'Весь день',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: c.textSecondary,
+                  ),
+                ),
               ],
             ),
             if (!_allDay) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.x3),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: AppButton(
+                      label: _formatTime(_start),
+                      icon: Icons.schedule,
+                      variant: AppButtonVariant.secondary,
+                      expanded: true,
                       onPressed: () => _pickTime(true),
-                      icon: const Icon(Icons.schedule),
-                      label: Text(_formatTime(_start)),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.x3),
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: AppButton(
+                      label: _formatTime(_end),
+                      icon: Icons.schedule,
+                      variant: AppButtonVariant.secondary,
+                      expanded: true,
                       onPressed: () => _pickTime(false),
-                      icon: const Icon(Icons.schedule),
-                      label: Text(_formatTime(_end)),
                     ),
                   ),
                 ],
               ),
             ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _location,
-              decoration: const InputDecoration(labelText: 'Место'),
+            const SizedBox(height: AppSpacing.x3),
+            AppField(
+              label: 'Место',
+              child: AppTextField(controller: _location),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _description,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Описание'),
+            const SizedBox(height: AppSpacing.x3),
+            AppField(
+              label: 'Описание',
+              child: AppTextarea(controller: _description),
             ),
             if (_isEditing) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.x4),
               _HistorySection(eventId: widget.event!.id),
             ],
             if (_error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.x3),
               Text(
                 _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: AppTypography.bodySmall.copyWith(color: c.danger),
               ),
             ],
-            const SizedBox(height: 20),
-            FilledButton(
+            const SizedBox(height: AppSpacing.x5),
+            AppButton(
+              label: _isEditing ? 'Сохранить' : 'Создать',
+              expanded: true,
+              loading: _saving,
               onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: AppProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEditing ? 'Сохранить' : 'Создать'),
             ),
+            if (_isEditing && widget.canDelete) ...[
+              const SizedBox(height: AppSpacing.x2),
+              AppButton(
+                label: 'Удалить',
+                icon: Icons.delete_outline,
+                variant: AppButtonVariant.danger,
+                expanded: true,
+                onPressed: _saving ? null : _delete,
+              ),
+            ],
           ],
         ),
       ),
@@ -282,8 +322,35 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
     }
   }
 
-  String _formatDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  Future<void> _delete() async {
+    final confirmed = await showAppConfirm(
+      context,
+      title: 'Удалить событие?',
+      message: 'Действие необратимо.',
+      confirmLabel: 'Удалить',
+      danger: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref.read(apiClientProvider).deleteEvent(widget.event!.id);
+      ref.invalidate(eventsProvider);
+      ref.invalidate(allEventsProvider);
+      ref.invalidate(spaceProvider);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
 
   String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -296,21 +363,31 @@ class _HistorySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final c = AppColors.of(context);
     final historyAsync = ref.watch(eventHistoryProvider(eventId));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('История', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
+        Text(
+          'История',
+          style: AppTypography.h4.copyWith(color: c.textPrimary),
+        ),
+        const SizedBox(height: AppSpacing.x2),
         historyAsync.when(
           loading: () => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.x2),
             child: AppLinearProgressIndicator(),
           ),
-          error: (error, _) => Text('История недоступна: $error'),
+          error: (error, _) => Text(
+            'История недоступна: $error',
+            style: AppTypography.bodySmall.copyWith(color: c.danger),
+          ),
           data: (entries) {
             if (entries.isEmpty) {
-              return const Text('История пуста');
+              return Text(
+                'История пуста',
+                style: AppTypography.bodySmall.copyWith(color: c.textMuted),
+              );
             }
             return Column(
               children: [
@@ -318,11 +395,9 @@ class _HistorySection extends ConsumerWidget {
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      '${entry.actionLabel} · ${entry.userName}',
-                    ),
+                    title: Text('${entry.actionLabel} · ${entry.userName}'),
                     subtitle: Text(
-                      '${entry.createdAt}'
+                      '${formatDateTime(DateTime.parse(entry.createdAt).toLocal())}'
                       '${entry.oldTitle != null && entry.newTitle != null && entry.oldTitle != entry.newTitle ? ' · ${entry.oldTitle} → ${entry.newTitle}' : ''}',
                     ),
                   ),

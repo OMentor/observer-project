@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../app.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models.dart';
-import '../../shared/widgets/app_progress_indicator.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_field.dart';
+import '../../shared/widgets/app_input.dart';
 
 class ActivateScreen extends ConsumerStatefulWidget {
   const ActivateScreen({super.key, required this.token});
@@ -40,7 +44,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Приглашение')),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.x5),
         child: _result != null ? _buildSuccess() : _buildForm(),
       ),
     );
@@ -48,67 +52,68 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
 
   Widget _buildSuccess() {
     final result = _result!;
+    final c = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.check_circle, size: 56, color: Colors.green),
-        const SizedBox(height: 16),
-        const Text(
+        Icon(Icons.check_circle, size: 56, color: c.success),
+        const SizedBox(height: AppSpacing.x4),
+        Text(
           'Готово! Вы присоединились к пространству.',
           textAlign: TextAlign.center,
+          style: AppTypography.body.copyWith(color: c.textPrimary),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.x2),
         Text(
           'Ваш пресет: ${Preset.label(result.preset)}.',
           textAlign: TextAlign.center,
+          style: AppTypography.bodySmall.copyWith(color: c.textSecondary),
         ),
-        const SizedBox(height: 24),
-        FilledButton(
+        const SizedBox(height: AppSpacing.x6),
+        AppButton(
+          label: 'К пространству',
+          expanded: true,
           onPressed: () => context.go('/spaces/${result.spaceId}'),
-          child: const Text('К пространству'),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton(
+        const SizedBox(height: AppSpacing.x2),
+        AppButton(
+          label: 'В календарь',
+          variant: AppButtonVariant.secondary,
+          expanded: true,
           onPressed: () => context.go('/'),
-          child: const Text('В календарь'),
         ),
       ],
     );
   }
 
   Widget _buildForm() {
+    final c = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'Активация токена доступа к пространству',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: AppTypography.h3.copyWith(color: c.textPrimary),
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _name,
-          decoration: const InputDecoration(
-            labelText: 'Ваше имя',
-            hintText: 'Как вас показывать участникам',
-          ),
+        const SizedBox(height: AppSpacing.x4),
+        AppField(
+          label: 'Ваше имя',
+          helper: 'Как вас показывать участникам',
+          child: AppTextField(controller: _name),
         ),
         if (_error != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.x3),
           Text(
             _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: AppTypography.bodySmall.copyWith(color: c.danger),
           ),
         ],
-        const SizedBox(height: 20),
-        FilledButton(
+        const SizedBox(height: AppSpacing.x5),
+        AppButton(
+          label: 'Активировать',
+          expanded: true,
+          loading: _busy,
           onPressed: _busy ? null : _activate,
-          child: _busy
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: AppProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Активировать'),
         ),
       ],
     );

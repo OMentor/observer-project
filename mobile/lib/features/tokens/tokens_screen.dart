@@ -4,7 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
-import '../../shared/widgets/app_progress_indicator.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/format.dart';
+import '../../shared/toast.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/app_dialogs.dart';
+import '../../shared/widgets/app_empty_state.dart';
+import '../../shared/widgets/app_error_state.dart';
+import '../../shared/widgets/app_field.dart';
+import '../../shared/widgets/app_icon_button.dart';
+import '../../shared/widgets/app_input.dart';
+import '../../shared/widgets/app_loading_state.dart';
+import '../../shared/widgets/app_select.dart';
 
 class TokensScreen extends ConsumerStatefulWidget {
   const TokensScreen({super.key, required this.spaceId});
@@ -28,23 +41,20 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
         title: const Text('Токены'),
         actions: [
           if (isFull)
-            IconButton(
-              tooltip: 'Новый токен',
-              icon: const Icon(Icons.add),
+            AppIconButton(
+              label: 'Новый токен',
+              icon: Icons.add,
               onPressed: _busy ? null : _create,
             ),
         ],
       ),
       body: !isFull
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
+          ? const AppEmptyState(
+              icon: Icon(Icons.key_outlined),
+              title: 'Токены недоступны',
+              description:
                   'Управление токенами доступно владельцу '
                   'и участникам с полным доступом.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
             )
           : _buildList(),
     );
@@ -53,31 +63,41 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
   Widget _buildList() {
     final tokensAsync = ref.watch(tokensProvider(widget.spaceId));
     return tokensAsync.when(
-      loading: () => const Center(child: AppProgressIndicator()),
-      error: (error, _) => Center(child: Text('Ошибка: $error')),
+      loading: () => const AppLoadingState(),
+      error: (error, _) => AppErrorState(
+        message: error.toString(),
+        onRetry: () => ref.invalidate(tokensProvider(widget.spaceId)),
+      ),
       data: (tokens) {
         final active = tokens.where((t) => !t.revoked).toList();
         if (active.isEmpty) {
-          return const Center(child: Text('Активных токенов нет'));
+          return const AppEmptyState(
+            icon: Icon(Icons.vpn_key_outlined),
+            title: 'Активных токенов нет',
+            description:
+                'Создайте токен, чтобы пригласить участников в пространство.',
+          );
         }
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(tokensProvider(widget.spaceId)),
           child: ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.x4),
             itemCount: active.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.x2),
             itemBuilder: (context, index) {
               final token = active[index];
-              return Card(
+              final created = DateTime.parse(token.createdAt).toLocal();
+              return AppCard(
+                padding: EdgeInsets.zero,
                 child: ListTile(
                   title: Text(Preset.label(token.preset)),
                   subtitle: Text(
-                    '${token.statusLabel} · создан '
-                    '${_shortDate(token.createdAt)}',
+                    '${token.statusLabel} · создан ${formatDate(created)}',
                   ),
-                  trailing: IconButton(
-                    tooltip: 'Отозвать',
-                    icon: const Icon(Icons.delete_outline),
+                  trailing: AppIconButton(
+                    label: 'Отозвать',
+                    icon: Icons.delete_outline,
+                    variant: AppIconButtonVariant.danger,
                     onPressed: () => _revoke(token),
                   ),
                 ),
@@ -123,11 +143,11 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
         await _showIssued(created);
       }
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
-      }
+      ref.read(toastProvider.notifier).push(
+            title: 'Не удалось создать токен',
+            description: error.toString(),
+            tone: ToastTone.danger,
+          );
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -148,24 +168,24 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
               const Text(
                 'Токен показывается один раз — сохраните его сейчас.',
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.x3),
               for (final token in tokens)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: SelectableText(
                     token.token ?? '',
-                    style: const TextStyle(fontSize: 12),
+                    style: AppTypography.mono.copyWith(fontSize: 12),
                   ),
                   subtitle: Text(Preset.label(token.preset)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.copy),
+                  trailing: AppIconButton(
+                    label: 'Скопировать',
+                    icon: Icons.copy,
                     onPressed: () {
-                      Clipboard.setData(
-                        ClipboardData(text: token.token ?? ''),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Скопировано')),
-                      );
+                      Clipboard.setData(ClipboardData(text: token.token ?? ''));
+                      ref.read(toastProvider.notifier).push(
+                            title: 'Скопировано',
+                            tone: ToastTone.success,
+                          );
                     },
                   ),
                 ),
@@ -173,9 +193,10 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
           ),
         ),
         actions: [
-          FilledButton(
+          AppButton(
+            label: 'Готово',
+            size: AppButtonSize.sm,
             onPressed: () => Navigator.pop(context),
-            child: const Text('Готово'),
           ),
         ],
       ),
@@ -183,43 +204,27 @@ class _TokensScreenState extends ConsumerState<TokensScreen> {
   }
 
   Future<void> _revoke(Token token) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Отозвать токен?'),
-        content: const Text('Токен перестанет действовать.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Отозвать'),
-          ),
-        ],
-      ),
+    final confirmed = await showAppConfirm(
+      context,
+      title: 'Отозвать токен?',
+      message: 'Токен перестанет действовать.',
+      confirmLabel: 'Отозвать',
+      danger: true,
     );
-    if (confirmed != true) {
+    if (!confirmed) {
       return;
     }
     try {
       await ref.read(apiClientProvider).revokeToken(token.id);
       ref.invalidate(tokensProvider(widget.spaceId));
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
-      }
+      ref.read(toastProvider.notifier).push(
+            title: 'Не удалось отозвать токен',
+            description: error.toString(),
+            tone: ToastTone.danger,
+          );
     }
   }
-}
-
-String _shortDate(String iso) {
-  final date = DateTime.parse(iso).toLocal();
-  return '${date.day.toString().padLeft(2, '0')}.'
-      '${date.month.toString().padLeft(2, '0')}.${date.year}';
 }
 
 class _TokenDraft {
@@ -245,77 +250,87 @@ class _TokenDialogState extends State<_TokenDialog> {
   String _preset = Preset.own;
   int _count = 1;
   DateTime? _expiresAt;
+  late final TextEditingController _countController =
+      TextEditingController(text: '1');
+
+  @override
+  void dispose() {
+    _countController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return AlertDialog(
       title: const Text('Новый токен'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DropdownButtonFormField<String>(
-            initialValue: _preset,
-            decoration: const InputDecoration(labelText: 'Пресет'),
-            items: Preset.all
-                .map(
-                  (p) => DropdownMenuItem(
-                    value: p,
-                    child: Text(Preset.label(p)),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _preset = value ?? _preset),
+          SizedBox(
+            width: 320,
+            child: AppField(
+              label: 'Пресет',
+              child: AppSelect<String>(
+                value: _preset,
+                items: [
+                  for (final p in Preset.all)
+                    AppSelectItem(value: p, label: Preset.label(p)),
+                ],
+                onChanged: (value) => setState(() => _preset = value ?? _preset),
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.x2),
           Text(
             Preset.hints[_preset] ?? '',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: AppTypography.bodySmall.copyWith(color: c.textSecondary),
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            initialValue: _count.toString(),
-            decoration: const InputDecoration(labelText: 'Количество'),
-            keyboardType: TextInputType.number,
-            onChanged: (value) {
-              final parsed = int.tryParse(value) ?? 1;
-              _count = parsed.clamp(1, 100);
-            },
+          const SizedBox(height: AppSpacing.x3),
+          SizedBox(
+            width: 320,
+            child: AppField(
+              label: 'Количество',
+              child: AppTextField(
+                controller: _countController,
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  final parsed = int.tryParse(value) ?? 1;
+                  setState(() => _count = parsed.clamp(1, 100));
+                },
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.x3),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  _expiresAt == null
-                      ? 'Без срока'
-                      : 'До ${_shortDate(_expiresAt!.toIso8601String())}',
+                  _expiresAt == null ? 'Без срока' : 'До ${formatDate(_expiresAt!)}',
+                  style: AppTypography.body.copyWith(color: c.textPrimary),
                 ),
               ),
-              TextButton(
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now().add(const Duration(days: 7)),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) {
-                    setState(() => _expiresAt = picked);
-                  }
-                },
-                child: const Text('Срок'),
+              AppButton(
+                label: 'Срок',
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.sm,
+                onPressed: _pickExpires,
               ),
             ],
           ),
         ],
       ),
       actions: [
-        TextButton(
+        AppButton(
+          label: 'Отмена',
+          variant: AppButtonVariant.ghost,
+          size: AppButtonSize.sm,
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
         ),
-        FilledButton(
+        AppButton(
+          label: 'Создать',
+          size: AppButtonSize.sm,
           onPressed: () => Navigator.pop(
             context,
             _TokenDraft(
@@ -324,9 +339,20 @@ class _TokenDialogState extends State<_TokenDialog> {
               expiresAt: _expiresAt,
             ),
           ),
-          child: const Text('Создать'),
         ),
       ],
     );
+  }
+
+  Future<void> _pickExpires() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _expiresAt = picked);
+    }
   }
 }

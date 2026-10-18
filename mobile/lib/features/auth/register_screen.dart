@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
-import '../../shared/widgets/app_progress_indicator.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_field.dart';
+import '../../shared/widgets/app_input.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -29,6 +33,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final isLoading = auth.isLoading;
+    final c = AppColors.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Регистрация')),
@@ -36,51 +41,59 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 360),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppSpacing.x6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Имя'),
+                AppField(
+                  label: 'Имя',
+                  child: AppTextField(
+                    controller: _name,
+                    hintText: 'Как вас показывать участникам',
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                const SizedBox(height: AppSpacing.x3),
+                AppField(
+                  label: 'Email',
+                  child: AppTextField(
+                    controller: _email,
+                    hintText: 'you@example.com',
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Пароль'),
+                const SizedBox(height: AppSpacing.x3),
+                AppField(
+                  label: 'Пароль',
+                  child: AppTextField(
+                    controller: _password,
+                    hintText: 'Придумайте пароль',
+                    obscureText: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                  ),
                 ),
                 if (auth.hasError) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.x3),
                   Text(
                     auth.error.toString(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                    style: AppTypography.bodySmall.copyWith(color: c.danger),
                   ),
                 ],
-                const SizedBox(height: 24),
-                FilledButton(
+                const SizedBox(height: AppSpacing.x6),
+                AppButton(
+                  label: 'Создать аккаунт',
+                  expanded: true,
+                  loading: isLoading,
                   onPressed: isLoading ? null : _submit,
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: AppProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Создать аккаунт'),
                 ),
-                const SizedBox(height: 8),
-                TextButton(
+                const SizedBox(height: AppSpacing.x2),
+                AppButton(
+                  label: 'Уже есть аккаунт? Войти',
+                  variant: AppButtonVariant.ghost,
+                  expanded: true,
                   onPressed: () => context.go('/login'),
-                  child: const Text('Уже есть аккаунт? Войти'),
                 ),
               ],
             ),

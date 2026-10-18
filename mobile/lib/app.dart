@@ -22,7 +22,7 @@ import 'features/profile/profile_screen.dart';
 import 'features/spaces/space_screen.dart';
 import 'features/spaces/spaces_screen.dart';
 import 'features/tokens/tokens_screen.dart';
-import 'shared/global_keys.dart';
+import 'shared/toast.dart';
 import 'shared/widgets/home_shell.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
@@ -200,9 +200,7 @@ class RealtimeController extends Notifier<RealtimeStatus> {
   }
 
   void _notify(String message) {
-    scaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ref.read(toastProvider.notifier).push(title: message);
     ref.read(notificationServiceProvider).show(
           title: 'Плетение',
           body: message,
@@ -222,11 +220,10 @@ class SyncController extends Notifier<void> {
 
     ref.listen<bool>(isOnlineProvider, (previous, next) {
       if (previous == false && next == true) {
-        scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('Соединение восстановлено — обновляем данные'),
-          ),
-        );
+        ref.read(toastProvider.notifier).push(
+              title: 'Соединение восстановлено — обновляем данные',
+              tone: ToastTone.success,
+            );
         ref.invalidate(spacesProvider);
         ref.invalidate(allEventsProvider);
       }

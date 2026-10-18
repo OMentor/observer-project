@@ -3,8 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/access.dart';
 import '../../shared/hex_color.dart';
-import '../../shared/widgets/app_progress_indicator.dart';
+import '../../shared/toast.dart';
+import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/app_empty_state.dart';
+import '../../shared/widgets/app_error_state.dart';
+import '../../shared/widgets/app_event_tile.dart';
+import '../../shared/widgets/app_loading_state.dart';
+import '../../shared/widgets/app_search_input.dart';
+import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/offline_banner.dart';
 import '../../shared/widgets/realtime_indicator.dart';
 import '../events/event_form_sheet.dart';
@@ -50,20 +60,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       for (final space in spaces)
         space.id: ref.watch(spacePresetProvider(space.id)).asData?.value,
     };
-    bool canCreateIn(Source source) {
-      final preset = presetBySpace[source.spaceId];
-      return preset == Preset.full || preset == Preset.own;
-    }
+    bool canCreateIn(Source source) =>
+        Access.canWriteEvents(presetBySpace[source.spaceId]);
 
     final canCreate = sources.any(canCreateIn);
 
-    final spaceSources =
-        _spaceFilter.isEmpty
-            ? sources
-            : sources.where((s) => s.spaceId == _spaceFilter).toList();
+    final spaceSources = _spaceFilter.isEmpty
+        ? sources
+        : sources.where((s) => s.spaceId == _spaceFilter).toList();
     final sourceFilterValid =
-        _sourceFilter.isEmpty ||
-        spaceSources.any((s) => s.id == _sourceFilter);
+        _sourceFilter.isEmpty || spaceSources.any((s) => s.id == _sourceFilter);
 
     return Scaffold(
       appBar: AppBar(
@@ -80,8 +86,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ref.invalidate(spacesProvider);
         },
         child: eventsAsync.when(
-          loading: () => const Center(child: AppProgressIndicator()),
-          error: (error, _) => Center(child: Text('Ошибка: $error')),
+          loading: () => const AppLoadingState(),
+          error: (error, _) => AppErrorState(
+            message: error.toString(),
+            onRetry: () {
+              ref.invalidate(allEventsProvider);
+              ref.invalidate(spacesProvider);
+            },
+          ),
           data: (allEvents) {
             final events = allEvents.where((event) {
               if (!overlapsPeriod(
@@ -102,9 +114,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 return false;
               }
               if (_query.isNotEmpty &&
-                  !event.title.toLowerCase().contains(
-                        _query.toLowerCase(),
-                      )) {
+                  !event.title.toLowerCase().contains(_query.toLowerCase())) {
                 return false;
               }
               return true;
@@ -143,13 +153,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 Expanded(
                   child: events.isEmpty
                       ? ListView(
+                          padding: const EdgeInsets.all(AppSpacing.x4),
                           children: const [
-                            SizedBox(height: 160),
-                            Center(child: Text('В этом периоде нет событий')),
+                            SizedBox(height: AppSpacing.x8),
+                            AppEmptyState(
+                              icon: Icon(Icons.event_busy_outlined),
+                              title: 'В этом периоде нет событий',
+                              description:
+                                  'Измените период или создайте новое событие.',
+                            ),
                           ],
                         )
                       : ListView.builder(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(AppSpacing.x4),
                           itemCount: groups.length,
                           itemBuilder: (context, index) {
                             final group = groups[index];
@@ -157,51 +173,37 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: AppSpacing.x2,
+                                  ),
                                   child: Text(
                                     group.label,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
+                                    style: AppTypography.h4.copyWith(
+                                      color: AppColors.of(context).textPrimary,
+                                    ),
                                   ),
                                 ),
                                 for (final event in group.events)
-                                  Card(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    child: ListTile(
-                                      leading: Container(
-                                        width: 4,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: event.busy
-                                              ? Colors.grey
-                                              : colorById[event.sourceId] ??
-                                                  Theme.of(context)
-                                                      .colorScheme
-                                                      .primary,
-                                          borderRadius:
-                                              BorderRadius.circular(2),
-                                        ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppSpacing.x2,
+                                    ),
+                                    child: AppCard(
+                                      padding: EdgeInsets.zero,
+                                      child: AppEventTile(
+                                        event: event,
+                                        color: colorById[event.sourceId],
+                                        onTap: event.busy
+                                            ? null
+                                            : () => _openEvent(
+                                                  context,
+                                                  event,
+                                                  sources,
+                                                  presetBySpace[spaceBySource[
+                                                      event.sourceId]],
+                                                  me,
+                                                ),
                                       ),
-                                      title: Text(event.title),
-                                      subtitle: Text(_timeLabel(event)),
-                                      trailing: event.location == null
-                                          ? null
-                                          : const Icon(
-                                              Icons.place_outlined,
-                                              size: 18,
-                                            ),
-                                      onTap: event.busy
-                                          ? null
-                                          : () => _openEvent(
-                                                context,
-                                                event,
-                                                sources,
-                                                presetBySpace[spaceBySource[
-                                                    event.sourceId]],
-                                                me,
-                                              ),
                                     ),
                                   ),
                               ],
@@ -223,19 +225,17 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     bool canCreate,
   ) async {
     if (sources.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Сначала создайте пространство и источник'),
-        ),
-      );
+      ref.read(toastProvider.notifier).push(
+            title: 'Сначала создайте пространство и источник',
+            tone: ToastTone.warning,
+          );
       return;
     }
     if (!canCreate) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Нет источников с правом создания событий'),
-        ),
-      );
+      ref.read(toastProvider.notifier).push(
+            title: 'Нет источников с правом создания событий',
+            tone: ToastTone.warning,
+          );
       return;
     }
     await showEventForm(
@@ -252,12 +252,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     String? preset,
     String? me,
   ) async {
-    final canEdit = preset == Preset.full ||
-        (preset == Preset.own && event.creatorId == me);
-    if (!canEdit) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Нет прав на изменение события')),
-      );
+    if (!Access.canEditEvent(event, preset, me)) {
+      ref.read(toastProvider.notifier).push(
+            title: 'Нет прав на изменение события',
+            tone: ToastTone.warning,
+          );
       return;
     }
     final source = sources.where((s) => s.id == event.sourceId);
@@ -265,6 +264,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context,
       sources: source.toList(),
       event: event,
+      canDelete: true,
     );
   }
 }
@@ -293,57 +293,41 @@ class _Filters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.x4,
+        AppSpacing.x3,
+        AppSpacing.x4,
+        AppSpacing.x1,
+      ),
       child: Column(
         children: [
-          TextField(
+          AppSearchInput(
             controller: controller,
+            placeholder: 'Поиск по названию',
             onChanged: onQuery,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Поиск по названию',
-              isDense: true,
-              border: OutlineInputBorder(),
-            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.x2),
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: spaceFilter.isEmpty ? null : spaceFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Пространство',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
+                child: AppSelect<String>(
+                  value: spaceFilter.isEmpty ? null : spaceFilter,
+                  hintText: 'Все пространства',
                   items: [
-                    const DropdownMenuItem(value: '', child: Text('Все')),
                     for (final space in spaces)
-                      DropdownMenuItem(
-                        value: space.id,
-                        child: Text(space.name),
-                      ),
+                      AppSelectItem(value: space.id, label: space.name),
                   ],
                   onChanged: (value) => onSpace(value ?? ''),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.x2),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: sourceFilter.isEmpty ? null : sourceFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Источник',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
+                child: AppSelect<String>(
+                  value: sourceFilter.isEmpty ? null : sourceFilter,
+                  hintText: 'Все источники',
                   items: [
-                    const DropdownMenuItem(value: '', child: Text('Все')),
                     for (final source in sources)
-                      DropdownMenuItem(
-                        value: source.id,
-                        child: Text(source.name),
-                      ),
+                      AppSelectItem(value: source.id, label: source.name),
                   ],
                   onChanged: (value) => onSource(value ?? ''),
                 ),
@@ -396,8 +380,14 @@ class _PeriodBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.x2,
+        AppSpacing.x2,
+        AppSpacing.x2,
+        0,
+      ),
       child: Column(
         children: [
           Row(
@@ -411,7 +401,7 @@ class _PeriodBar extends StatelessWidget {
                 child: Center(
                   child: Text(
                     title,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: AppTypography.h4.copyWith(color: c.textPrimary),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -428,9 +418,9 @@ class _PeriodBar extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.x1),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x2),
             child: Row(
               children: [
                 Expanded(
@@ -457,18 +447,9 @@ class _PeriodBar extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.x1),
         ],
       ),
     );
   }
-}
-
-String _timeLabel(CalendarEvent event) {
-  String two(int v) => v.toString().padLeft(2, '0');
-  if (event.allDay) {
-    return 'Весь день';
-  }
-  return '${two(event.startAt.hour)}:${two(event.startAt.minute)} – '
-      '${two(event.endAt.hour)}:${two(event.endAt.minute)}';
 }

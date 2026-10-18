@@ -16,7 +16,7 @@ class AppListCard extends StatelessWidget {
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       if (i > 0) {
-        Divider(height: 1, thickness: 1, color: c.borderSubtle);
+        rows.add(Divider(height: 1, thickness: 1, color: c.borderSubtle));
       }
       rows.add(children[i]);
     }

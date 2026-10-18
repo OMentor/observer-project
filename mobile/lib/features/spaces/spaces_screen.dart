@@ -3,7 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
-import '../../shared/widgets/app_progress_indicator.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/toast.dart';
+import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/app_dialogs.dart';
+import '../../shared/widgets/app_empty_state.dart';
+import '../../shared/widgets/app_error_state.dart';
+import '../../shared/widgets/app_list_card.dart';
+import '../../shared/widgets/app_loading_state.dart';
 
 class SpacesScreen extends ConsumerWidget {
   const SpacesScreen({super.key});
@@ -20,25 +28,44 @@ class SpacesScreen extends ConsumerWidget {
         label: const Text('Пространство'),
       ),
       body: spaces.when(
-        loading: () => const Center(child: AppProgressIndicator()),
-        error: (error, _) => Center(child: Text('Ошибка: $error')),
+        loading: () => const AppLoadingState(),
+        error: (error, _) => AppErrorState(
+          message: error.toString(),
+          onRetry: () => ref.invalidate(spacesProvider),
+        ),
         data: (items) {
           if (items.isEmpty) {
-            return const Center(child: Text('Пока нет пространств'));
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.x4),
+              children: const [
+                SizedBox(height: AppSpacing.x8),
+                AppEmptyState(
+                  icon: Icon(Icons.grid_view_outlined),
+                  title: 'Пока нет пространств',
+                  description:
+                      'Создайте пространство, чтобы добавлять источники и события.',
+                ),
+              ],
+            );
           }
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(spacesProvider),
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.x4),
               itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppSpacing.x2),
               itemBuilder: (context, index) {
                 final space = items[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(space.name),
-                    subtitle: Text('${space.sources.length} источников'),
-                    trailing: const Icon(Icons.chevron_right),
+                return AppCard(
+                  padding: EdgeInsets.zero,
+                  child: AppListRow(
+                    title: space.name,
+                    subtitle: '${space.sources.length} источников',
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: AppColors.of(context).textMuted,
+                    ),
                     onTap: () => context.go('/spaces/${space.id}'),
                   ),
                 );
@@ -51,27 +78,12 @@ class SpacesScreen extends ConsumerWidget {
   }
 
   Future<void> _createSpace(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Новое пространство'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Название'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Создать'),
-          ),
-        ],
-      ),
+    final name = await showAppPrompt(
+      context,
+      title: 'Новое пространство',
+      label: 'Название',
+      confirmLabel: 'Создать',
+      validator: (value) => value.isEmpty ? 'Введите название' : null,
     );
     if (name == null || name.isEmpty) {
       return;
@@ -81,11 +93,11 @@ class SpacesScreen extends ConsumerWidget {
       ref.invalidate(spacesProvider);
       ref.invalidate(allEventsProvider);
     } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
-      }
+      ref.read(toastProvider.notifier).push(
+            title: 'Не удалось создать пространство',
+            description: error.toString(),
+            tone: ToastTone.danger,
+          );
     }
   }
 }

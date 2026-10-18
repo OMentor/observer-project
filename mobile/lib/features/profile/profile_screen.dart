@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
+import '../../core/models.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../shared/toast.dart';
+import '../../shared/widgets/app_avatar.dart';
+import '../../shared/widgets/app_badge.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_field.dart';
+import '../../shared/widgets/app_input.dart';
+import '../../shared/widgets/app_list_card.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -13,7 +23,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _tokenController = TextEditingController();
   bool _activating = false;
-  String? _message;
+  String? _error;
 
   static const _providers = [
     ('Яндекс.Календарь', Icons.cloud_outlined),
@@ -36,16 +46,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
     setState(() {
       _activating = true;
-      _message = null;
+      _error = null;
     });
     try {
-      final result =
-          await ref.read(apiClientProvider).activateToken(token);
-      setState(() {
-        _message = 'Пространство присоединено · ${result.preset}';
-      });
+      final result = await ref.read(apiClientProvider).activateToken(token);
+      _tokenController.clear();
+      ref.invalidate(spacesProvider);
+      ref.read(toastProvider.notifier).push(
+            title: 'Пространство присоединено',
+            description: 'Пресет: ${Preset.label(result.preset)}',
+            tone: ToastTone.success,
+          );
     } catch (error) {
-      setState(() => _message = 'Не удалось активировать: $error');
+      if (mounted) {
+        setState(() => _error = 'Не удалось активировать: $error');
+      }
+      ref.read(toastProvider.notifier).push(
+            title: 'Токен не активирован',
+            description: error.toString(),
+            tone: ToastTone.danger,
+          );
     } finally {
       if (mounted) {
         setState(() => _activating = false);
@@ -55,41 +75,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     final user = ref.watch(authControllerProvider).asData?.value;
     final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Профиль')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.x4),
         children: [
-          const CircleAvatar(radius: 32, child: Icon(Icons.person, size: 32)),
-          const SizedBox(height: 16),
+          Center(child: AppAvatar(name: user?.name ?? '?', size: 64)),
+          const SizedBox(height: AppSpacing.x3),
           if (user != null) ...[
             Center(
               child: Text(
                 user.name,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: AppTypography.h3.copyWith(color: c.textPrimary),
               ),
             ),
-            const SizedBox(height: 4),
-            Center(child: Text(user.email)),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: const Icon(Icons.public),
-              title: const Text('Часовой пояс'),
-              subtitle: Text(user.timezone),
+            const SizedBox(height: AppSpacing.x1),
+            Center(
+              child: Text(
+                user.email,
+                style: AppTypography.bodySmall.copyWith(
+                  color: c.textSecondary,
+                ),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.badge_outlined),
-              title: const Text('Роль'),
-              subtitle: Text(user.role),
+            const SizedBox(height: AppSpacing.x5),
+            AppListCard(
+              children: [
+                AppListRow(
+                  leading: Icon(Icons.public, color: c.textSecondary),
+                  title: 'Часовой пояс',
+                  subtitle: user.timezone,
+                ),
+                AppListRow(
+                  leading: Icon(Icons.badge_outlined, color: c.textSecondary),
+                  title: 'Роль',
+                  subtitle: user.role,
+                ),
+              ],
             ),
           ],
-          const Divider(height: 32),
-          Text('Оформление', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.x5),
+          _SectionTitle(title: 'Оформление', color: c.textPrimary),
+          const SizedBox(height: AppSpacing.x2),
           SegmentedButton<ThemeMode>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(
                 value: ThemeMode.system,
@@ -112,49 +145,78 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ref.read(themeModeProvider.notifier).set(selection.first);
             },
           ),
-          const Divider(height: 32),
+          const SizedBox(height: AppSpacing.x5),
+          _SectionTitle(title: 'Внешние подключения', color: c.textPrimary),
+          const SizedBox(height: AppSpacing.x1),
           Text(
-            'Внешние подключения',
-            style: Theme.of(context).textTheme.titleMedium,
+            'Синхронизация календарей появится позже.',
+            style: AppTypography.bodySmall.copyWith(color: c.textSecondary),
           ),
-          const SizedBox(height: 4),
-          const Text('Синхронизация календарей появится позже.'),
-          const SizedBox(height: 8),
-          for (final provider in _providers)
-            ListTile(
-              leading: Icon(provider.$2),
-              title: Text(provider.$1),
-              trailing: const Text('Скоро'),
+          const SizedBox(height: AppSpacing.x2),
+          AppListCard(
+            children: [
+              for (final provider in _providers)
+                AppListRow(
+                  leading: Icon(provider.$2, color: c.textSecondary),
+                  title: provider.$1,
+                  trailing: const AppBadge(
+                    label: 'Скоро',
+                    tone: AppBadgeTone.muted,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.x5),
+          _SectionTitle(title: 'Активация токена', color: c.textPrimary),
+          const SizedBox(height: AppSpacing.x2),
+          AppField(
+            label: 'Токен',
+            child: AppTextField(
+              controller: _tokenController,
+              hintText: 'Вставьте токен доступа',
+              onSubmitted: (_) => _activating ? null : _activate(),
             ),
-          const Divider(height: 32),
-          Text('Активация токена', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _tokenController,
-            decoration: const InputDecoration(
-              labelText: 'Токен',
-              border: OutlineInputBorder(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.x2),
+            Text(
+              _error!,
+              style: AppTypography.bodySmall.copyWith(color: c.danger),
             ),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: _activating ? null : _activate,
-            icon: const Icon(Icons.key),
-            label: const Text('Активировать'),
-          ),
-          if (_message != null) ...[
-            const SizedBox(height: 8),
-            Text(_message!),
           ],
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
+          const SizedBox(height: AppSpacing.x3),
+          AppButton(
+            label: 'Активировать',
+            icon: Icons.key,
+            expanded: true,
+            loading: _activating,
+            onPressed: _activating ? null : _activate,
+          ),
+          const SizedBox(height: AppSpacing.x5),
+          AppButton(
+            label: 'Выйти',
+            icon: Icons.logout,
+            variant: AppButtonVariant.secondary,
+            expanded: true,
             onPressed: () =>
                 ref.read(authControllerProvider.notifier).signOut(),
-            icon: const Icon(Icons.logout),
-            label: const Text('Выйти'),
           ),
+          const SizedBox(height: AppSpacing.x4),
         ],
       ),
     );
   }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.color});
+
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        title,
+        style: AppTypography.h4.copyWith(color: color),
+      );
 }
