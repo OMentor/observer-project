@@ -78,6 +78,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _addEvent(context, sources, canCreate),
+        tooltip: 'Создать событие',
         child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
