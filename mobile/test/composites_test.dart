@@ -11,6 +11,7 @@ import 'package:pletenie_mobile/shared/widgets/app_button.dart';
 import 'package:pletenie_mobile/shared/widgets/app_dialogs.dart';
 import 'package:pletenie_mobile/shared/widgets/app_empty_state.dart';
 import 'package:pletenie_mobile/shared/widgets/app_error_state.dart';
+import 'package:pletenie_mobile/shared/widgets/app_event_tile.dart';
 import 'package:pletenie_mobile/shared/widgets/app_list_card.dart';
 import 'package:pletenie_mobile/shared/widgets/app_loading_state.dart';
 import 'package:pletenie_mobile/shared/widgets/app_search_input.dart';
@@ -28,6 +29,7 @@ CalendarEvent _event({
   String id = 'e1',
   String creatorId = 'u1',
   String title = 'Встреча',
+  String? location,
 }) {
   final start = DateTime(2026, 10, 18, 9);
   return CalendarEvent(
@@ -41,6 +43,7 @@ CalendarEvent _event({
     timezone: 'UTC',
     createdAt: '2026-10-18T00:00:00.000Z',
     updatedAt: '2026-10-18T00:00:00.000Z',
+    location: location,
   );
 }
 
@@ -351,6 +354,71 @@ void main() {
 
       await tester.pump(const Duration(seconds: 6));
       expect(container.read(toastProvider), isEmpty);
+    });
+  });
+
+  group('AppEventTile', () {
+    testWidgets('показывает название, время и место', (tester) async {
+      final event = _event(location: 'Переговорная 2');
+      await tester.pumpWidget(host(AppEventTile(event: event)));
+
+      expect(find.text('Встреча'), findsOneWidget);
+      expect(find.text(eventTimeLabel(event)), findsOneWidget);
+      expect(find.byIcon(Icons.place_outlined), findsOneWidget);
+    });
+
+    testWidgets('весь день подписывается «Весь день»', (tester) async {
+      final event = _event();
+      final allDay = CalendarEvent(
+        id: event.id,
+        sourceId: event.sourceId,
+        creatorId: event.creatorId,
+        title: event.title,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        allDay: true,
+        timezone: event.timezone,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+      );
+      await tester.pumpWidget(host(AppEventTile(event: allDay)));
+
+      expect(find.text('Весь день'), findsOneWidget);
+    });
+
+    testWidgets('занятое событие маскируется и не нажимается', (tester) async {
+      var taps = 0;
+      final event = _event();
+      final busy = CalendarEvent(
+        id: event.id,
+        sourceId: event.sourceId,
+        creatorId: event.creatorId,
+        title: 'Секретная встреча',
+        startAt: event.startAt,
+        endAt: event.endAt,
+        allDay: false,
+        timezone: event.timezone,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        busy: true,
+      );
+
+      await tester.pumpWidget(
+        host(AppEventTile(event: busy, onTap: () => taps++)),
+      );
+
+      expect(find.text('Занято'), findsOneWidget);
+      expect(find.text('Секретная встреча'), findsNothing);
+
+      await tester.tap(find.byType(ListTile));
+      await tester.pump();
+      expect(taps, 0);
+    });
+
+    testWidgets('без места иконка скрыта', (tester) async {
+      await tester.pumpWidget(host(AppEventTile(event: _event())));
+
+      expect(find.byIcon(Icons.place_outlined), findsNothing);
     });
   });
 }

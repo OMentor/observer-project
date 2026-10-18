@@ -36,7 +36,7 @@ class AppEventTile extends StatelessWidget {
     final barColor = busy ? appBusyColor : (color ?? c.accent);
 
     return ListTile(
-      enabled: onTap != null,
+      enabled: !busy && onTap != null,
       leading: Container(
         width: 4,
         height: 40,
@@ -58,7 +58,7 @@ class AppEventTile extends StatelessWidget {
       trailing: event.location == null
           ? null
           : Icon(Icons.place_outlined, size: 18, color: c.textSecondary),
-      onTap: onTap,
+      onTap: busy ? null : onTap,
     );
   }
 }
