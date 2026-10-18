@@ -7,6 +7,7 @@ import 'core/notifications/notification_service.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_theme.dart';
 import 'shared/global_keys.dart';
+import 'shared/widgets/app_toast_host.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,8 @@ class PletenieApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) =>
+          AppToastHost(child: child ?? const SizedBox.shrink()),
     );
   }
 }

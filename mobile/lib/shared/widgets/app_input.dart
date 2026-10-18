@@ -33,6 +33,7 @@ class AppTextField extends StatelessWidget {
     this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
     this.textAlign = TextAlign.start,
+    this.autofocus = false,
   });
 
   final TextEditingController? controller;
@@ -52,6 +53,7 @@ class AppTextField extends StatelessWidget {
   final TextCapitalization textCapitalization;
   final List<TextInputFormatter>? inputFormatters;
   final TextAlign textAlign;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +67,7 @@ class AppTextField extends StatelessWidget {
       onSubmitted: onSubmitted,
       enabled: enabled,
       focusNode: focusNode,
+      autofocus: autofocus,
       autofillHints: autofillHints,
       maxLines: maxLines,
       textCapitalization: textCapitalization,

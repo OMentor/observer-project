@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:pletenie_mobile/core/theme/app_theme.dart';
-import 'package:pletenie_mobile/core/theme/app_tokens.dart';
 import 'package:pletenie_mobile/shared/palette.dart';
 import 'package:pletenie_mobile/shared/widgets/app_avatar.dart';
 import 'package:pletenie_mobile/shared/widgets/app_badge.dart';
