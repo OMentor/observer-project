@@ -41,6 +41,18 @@ curl -u "$LOGIN:$APP_PASSWORD" -X PROPFIND \
 | Apple iCloud | 19.10.2026 | — | — | — | отложен до Этапа 7 (нет iPhone/Mac) | отложен |
 | Radicale (local) | 19.10.2026 | 207 | — | — | `http://localhost:5232`, `auth none`, principal `/dev/` | ok (dev) |
 
+## Pull end-to-end (Фаза 2, локальный Radicale)
+
+Проверено вручную 19.10.2026 через реальную очередь BullMQ и воркер
+(`calendar-radicale`, календарь `dev/e2e`):
+
+| Сценарий | Действие во внешнем календаре | Результат pull |
+|----------|-------------------------------|----------------|
+| create | PUT нового VEVENT | `+1` (`sync_status='synced'`, `external_etag` заполнен) |
+| idempotent | повторный force-pull без изменений | `+0 ~0 -0 (=1)` (ETag совпал) |
+| update | PUT того же UID с новым SUMMARY/DTSTART | `+0 ~1 -0` (обновлено на месте, без дубля) |
+| delete | DELETE ресурса | `+0 ~0 -1`; событие soft-delete (`GET /events` → 0) |
+
 ## Решение по этапу
 
 - Подтверждено провайдеров: **1 / 2** (Яндекс ✅; нужен ещё Mail.ru или ≥2 суммарно).

@@ -14,29 +14,32 @@ export interface ProviderCredentials {
   password: string;
 }
 
-/** Событие во внешнем календаре. */
+/** Событие во внешнем календаре, полученное при pull. */
 export interface RemoteEvent {
   /** UID события у провайдера (`VEVENT.UID`). */
-  id: string;
+  uid: string;
   /** ETag версии для оптимистичной блокировки. */
-  etag?: string;
-  /** iCalendar-полезная нагрузка. */
-  data?: unknown;
+  etag: string | null;
+  /** iCalendar-полезная нагрузка (`.ics`). */
+  ical: string;
 }
 
+/**
+ * Результат pull — полный набор событий календаря.
+ * Удалённые события вычисляются сравнением с локальной БД.
+ */
 export interface PullResult {
   events: RemoteEvent[];
-  syncToken?: string | null;
 }
 
 /**
  * Общий контракт провайдера синхронизации.
- * Фаза 1 реализует только `listCalendars`; pull/push/delete — Фазы 2/3.
+ * Фаза 2: `pull`. push/delete — Фаза 3.
  */
 export interface SyncProvider {
   readonly provider: ExternalProvider;
   listCalendars(): Promise<ExternalCalendar[]>;
-  pull(syncToken?: string | null): Promise<PullResult>;
+  pull(calendarId: string): Promise<PullResult>;
   push(event: RemoteEvent): Promise<RemoteEvent>;
-  delete(externalId: string): Promise<void>;
+  delete(calendarId: string, externalId: string): Promise<void>;
 }

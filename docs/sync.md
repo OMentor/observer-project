@@ -233,16 +233,26 @@ auto-resolve по «последнее побеждает». Если в пре�
 
 ### 5.2. Первичный pull
 
-Правило: локальные события **не перезаписываются**.
+Правило: локальные события **не перезаписываются**, дедупликация — по ETag.
 
-- Для каждого внешнего события: если `external_id` уже есть у нас в этом
-  источнике — пропускаем. Если нет — создаём локальное событие с
-  `external_id`, `external_provider`, `sync_status='synced'`.
-- События, которые есть у нас, но нет во внешнем (и `external_id IS NULL`) —
-  остаются как `local`, будут запушены в следующем push-цикле.
+- Полная выборка календаря (`fetchCalendarObjects`); каждый объект парсится
+  iCal-парсером (`parseIcalEvent`).
+- Если `external_id` (UID) уже есть в этом источнике и `external_etag`
+  совпадает — пропускаем (идемпотентность).
+- Если ETag изменился — обновляем поля события (`sync_status='synced'`).
+- Если события нет — создаём с `external_id`, `external_provider`,
+  `external_etag`, `sync_status='synced'`.
+- События с `external_id`, которых нет во внешнем ответе, помечаются
+  удалёнными (`deleted_at`). Локальные (`external_id IS NULL`) не трогаются —
+  будут запушены в push-цикле.
 
 Причина: пользователь мог создать события в «Плетении» до подключения. Они
 не должны «пропасть» только потому, что их нет в новом календаре.
+
+> Реализация Фазы 2 (MVP): pull — **полная выборка**. Инкремент по `syncToken`
+> (WebDAV `sync-collection`) отложен до Фазы 6: tsdav требует
+> `collection.objectMultiGet`, а токен в схеме хранится на подключении, а не
+> на календаре (§3.1). Идемпотентность обеспечивается сравнением ETag.
 
 ### 5.3. Отключение синхронизации
 
@@ -461,10 +471,15 @@ credentials = пользователи должны переподключить
 
 ### 11.1. Unit
 
-- `crypto.spec.ts` — шифрование/расшифровка (см. Фаза 1).
-- `caldav.provider.spec.ts` — `listCalendars` с MSW-моком; парсинг ответа.
-- `conflict.resolver.spec.ts` — все 9 строк таблицы §4.3.
-- `rrule.spec.ts` — развёртывание простых правил, read-only сложных.
+- `crypto.spec.ts` — шифрование/расшифровка (Фаза 1).
+- `caldav.provider.spec.ts` — `listCalendars` и `pull` с мок-`DavClient` (Фаза 2).
+- `ical-parser.spec.ts` — парсинг VEVENT, all-day (`VALUE=DATE`), нормализация
+  `Etc/UTC` → `UTC` (Фаза 2).
+- `pull.service.spec.ts` — create/update/skip-по-ETag/delete, статусы (Фаза 2).
+- `links.service.spec.ts`, `sync.controller.spec.ts` — link/unlink/force (Фаза 2).
+- `provider.factory.spec.ts`, `connections.service.spec.ts` — Фаза 1.
+- `conflict.resolver.spec.ts` — все 9 строк таблицы §4.3 (Фаза 3).
+- `rrule.spec.ts` — развёртывание простых правил, read-only сложных (Фаза 6).
 
 ### 11.2. Integration
 
@@ -494,6 +509,36 @@ Playwright: подключение → связывание → событие �
 3. **Автомерж дубликатов** при смене провайдера (§5.5) — вне scope. UX-решение
    «показать и дать пользователю решить» принято, но конкретный UI не
    спроектирован.
+4. **Инкрементальный pull по `syncToken`** — отложен до Фазы 6 (см. §5.2).
+   Нужно: привязать `objectMultiGet` к объекту календаря tsdav либо хранить
+   `syncToken` на `SourceExternalMap`, а не на `ExternalConnection`.
+
+---
+
+## 13. Статус реализации (Этап 6)
+
+| Фаза | Содержание | Статус |
+|------|------------|--------|
+| 1 | Подключения CalDAV + `listCalendars` | ✅ закрыта (Radicale + Яндекс) |
+| 2 | Pull: iCal-парсер, ETag-diff, link, воркер | ✅ реализовано |
+
+**Фаза 2 — детали:**
+- Парсер: `node-ical`, нормализация all-day → UTC-полночь, `Etc/UTC` → `UTC`.
+- `SyncProvider`: `pull(calendarId) → PullResult { events }`, где
+  `RemoteEvent { uid, etag, ical }`; `push`/`delete` — заглушки (`Phase 3`).
+- API: `POST /sources/:id/link`, `DELETE /sources/:id/link`,
+  `POST /sync/connections/:id/force` (202, по одной задаче на `SourceExternalMap`).
+- Воркер: BullMQ, очередь `sync`, handler `pull` инъектится через
+  `app.get(PullService)` (не `@nestjs/bullmq`).
+- Проверено end-to-end на локальном Radicale: create → skip (идемпотентно по
+  ETag) → update → delete через реальные очередь и воркер.
+- Интеграционный тест против реального Яндекса: `listCalendars` 207 (Фаза 1).
+
+**Отклонения, принятые пользователем:**
+- Воркер — чистый `bullmq` (без `@nestjs/bullmq`).
+- Radicale — только для dev/personal (не публичный провайдер).
+- `ENCRYPTION_KEY` — в `backend/.env`, не в KMS.
+- Инкремент `syncToken` — отложен до Фазы 6 (full-fetch + ETag).
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.

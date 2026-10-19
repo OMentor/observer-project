@@ -1,5 +1,6 @@
 import { ExternalProvider } from '@prisma/client';
-import { createDAVClient, DAVCalendar } from 'tsdav';
+import { createDAVClient, DAVCalendar, DAVCalendarObject, DAVObject } from 'tsdav';
+import { parseIcalEvent } from '../ical/ical-parser';
 import {
   ExternalCalendar,
   ProviderCredentials,
@@ -11,6 +12,7 @@ import {
 /** Минимальный контракт DAV-клиента, который использует провайдер. */
 export interface DavClient {
   fetchCalendars(): Promise<DAVCalendar[]>;
+  fetchCalendarObjects(calendarUrl: string): Promise<DAVCalendarObject[]>;
 }
 
 export type DavClientFactory = (
@@ -37,12 +39,23 @@ const defaultFactory: DavClientFactory = ({ url, username, password }) => {
     authMethod: 'Basic',
     defaultAccountType: 'caldav',
     fetch: fetchWithUserAgent,
-  });
+  }).then((client) => ({
+    fetchCalendars: () => client.fetchCalendars(),
+    fetchCalendarObjects: async (calendarUrl) => {
+      const calendars = await client.fetchCalendars();
+      const calendar = calendars.find((item) => item.url === calendarUrl);
+      if (!calendar) {
+        throw new Error(`Calendar not found: ${calendarUrl}`);
+      }
+      return client.fetchCalendarObjects({ calendar });
+    },
+  }));
 };
 
 /**
  * CalDAV-провайдер (Яндекс, Mail.ru, локальный Radicale).
- * Фаза 1: только `listCalendars`. Остальное — заглушки до Фаз 2/3.
+ * Фаза 2: `listCalendars` + `pull` (полная выборка, инкремент по ETag).
+ * push/delete — Фаза 3.
  */
 export class CaldavProvider implements SyncProvider {
   readonly provider: ExternalProvider;
@@ -64,15 +77,36 @@ export class CaldavProvider implements SyncProvider {
     }));
   }
 
-  pull(_syncToken?: string | null): Promise<PullResult> {
-    return Promise.reject(new Error('Not implemented yet (Phase 2)'));
+  async pull(calendarId: string): Promise<PullResult> {
+    const client = await this.factory(this.credentials);
+    const objects = await client.fetchCalendarObjects(calendarId);
+    return { events: this.toRemoteEvents(objects) };
   }
 
   push(_event: RemoteEvent): Promise<RemoteEvent> {
     return Promise.reject(new Error('Not implemented yet (Phase 3)'));
   }
 
-  delete(_externalId: string): Promise<void> {
+  delete(_calendarId: string, _externalId: string): Promise<void> {
     return Promise.reject(new Error('Not implemented yet (Phase 3)'));
+  }
+
+  private toRemoteEvents(objects: DAVObject[]): RemoteEvent[] {
+    const events: RemoteEvent[] = [];
+    for (const object of objects) {
+      if (typeof object.data !== 'string') {
+        continue;
+      }
+      const parsed = parseIcalEvent(object.data);
+      if (!parsed) {
+        continue;
+      }
+      events.push({
+        uid: parsed.uid,
+        etag: object.etag ?? null,
+        ical: object.data,
+      });
+    }
+    return events;
   }
 }

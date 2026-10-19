@@ -1,32 +1,31 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
+import { SYNC_QUEUE, SyncJobData } from '../sync/sync.constants';
 
-export const SYNC_QUEUE = 'sync';
-
-export interface SyncJobData {
-  connectionId?: string;
-  sourceMapId?: string;
-}
+export type SyncJobHandler = (data: SyncJobData) => Promise<void>;
 
 /**
- * Заглушка воркера синхронизации (Фаза 1).
- *
- * Реальный pull/push появится в Фазах 2/3. Пока воркер только логирует
- * полученные задания, подтверждая работоспособность связки BullMQ + Redis.
- *
- * Примечание: используется чистый BullMQ (без `@nestjs/bullmq`), чтобы не
- * добавлять новую зависимость на этом этапе.
+ * Воркер синхронизации на чистом BullMQ (без `@nestjs/bullmq`).
+ * Обработчик передаётся из `worker/main.ts` (DI-контейнер Nest доступен через
+ * `app.get(...)`).
  */
-export function createSyncWorker(redisUrl: string): Worker<SyncJobData> {
+export function createSyncWorker(
+  redisUrl: string,
+  handler: SyncJobHandler,
+): Worker<SyncJobData> {
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
 
   const worker = new Worker<SyncJobData>(
     SYNC_QUEUE,
     async (job) => {
-      console.log(`[sync] получено задание ${job.id} (${job.name})`, job.data);
+      await handler(job.data);
     },
     { connection },
   );
+
+  worker.on('completed', (job) => {
+    console.log(`[sync] задание ${job.id} завершено`);
+  });
 
   worker.on('failed', (job, error) => {
     console.error(`[sync] задание ${job?.id} упало:`, error.message);
