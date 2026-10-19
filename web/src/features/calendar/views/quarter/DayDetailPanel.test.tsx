@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { CalendarEvent } from '@/lib/types';
@@ -113,6 +113,25 @@ describe('DayDetailPanel', () => {
       />,
     );
     expect(screen.getByText('Не удалось загрузить события.')).toBeInTheDocument();
+  });
+
+  it('exposes draggable events when a move handler is provided', () => {
+    const onDragEvent = vi.fn();
+    const event = makeEvent('a', new Date(2026, 9, 15, 9));
+    render(
+      <DayDetailPanel
+        date={new Date(2026, 9, 15)}
+        events={[event]}
+        colorBySource={colorBySource}
+        onDragEvent={onDragEvent}
+      />,
+    );
+    const item = screen.getByRole('button', { name: /Event a/ });
+    expect(item).toHaveAttribute('draggable', 'true');
+    fireEvent.dragStart(item, {
+      dataTransfer: { setData: vi.fn(), effectAllowed: '' },
+    });
+    expect(onDragEvent).toHaveBeenCalledWith(event);
   });
 
   it('offers to add an event', async () => {

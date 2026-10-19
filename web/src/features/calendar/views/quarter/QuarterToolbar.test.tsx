@@ -57,4 +57,31 @@ describe('QuarterToolbar', () => {
     );
     expect(onChange).toHaveBeenCalledWith('Q1 2027');
   });
+
+  it('uses year wording when kind is year', async () => {
+    render(
+      <QuarterToolbar
+        label="2026"
+        value="2026"
+        options={[{ key: '2026', start: new Date(2026, 0, 1) }]}
+        onChange={vi.fn()}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        onToday={vi.fn()}
+        kind="year"
+      />,
+    );
+    expect(
+      screen.getAllByText('2026').length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole('button', { name: 'Предыдущий год' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Следующий год' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Переход к году' }),
+    ).toBeInTheDocument();
+  });
 });
