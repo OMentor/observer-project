@@ -34,12 +34,17 @@ export interface PullResult {
 
 /**
  * Общий контракт провайдера синхронизации.
- * Фаза 2: `pull`. push/delete — Фаза 3.
+ *
+ * - `pull` — Фаза 2 (полная выборка, инкремент по ETag).
+ * - `push` — Фаза 3: `event.etag === null` → создание (If-None-Match: *),
+ *   иначе обновление с оптимистичной блокировкой (If-Match). Бросает
+ *   `SyncConflictError` при 412/404. Возвращает актуальный ETag.
+ * - `delete` — Фаза 3: удаляет объект по UID; отсутствие — не ошибка.
  */
 export interface SyncProvider {
   readonly provider: ExternalProvider;
   listCalendars(): Promise<ExternalCalendar[]>;
   pull(calendarId: string): Promise<PullResult>;
-  push(event: RemoteEvent): Promise<RemoteEvent>;
+  push(calendarId: string, event: RemoteEvent): Promise<RemoteEvent>;
   delete(calendarId: string, externalId: string): Promise<void>;
 }

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from '../app.module';
 import { PullService } from '../sync/pull/pull.service';
+import { PushService } from '../sync/push/push.service';
 import { createSyncWorker } from './sync.worker';
 
 async function bootstrap() {
@@ -9,10 +10,16 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
   const pull = app.get(PullService);
+  const push = app.get(PushService);
 
   const worker = createSyncWorker(redisUrl, async (data) => {
+    if (data.pushEventId) {
+      const outcome = await push.pushEvent(data.pushEventId);
+      console.log(`[sync] push события ${data.pushEventId}: ${outcome}`);
+      return;
+    }
     if (!data.sourceMapId) {
-      console.warn('[sync] задание без sourceMapId пропущено', data);
+      console.warn('[sync] задание без цели пропущено', data);
       return;
     }
     const stats = await pull.pullSourceMap(data.sourceMapId);

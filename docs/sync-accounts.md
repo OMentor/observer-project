@@ -53,6 +53,17 @@ curl -u "$LOGIN:$APP_PASSWORD" -X PROPFIND \
 | update | PUT того же UID с новым SUMMARY/DTSTART | `+0 ~1 -0` (обновлено на месте, без дубля) |
 | delete | DELETE ресурса | `+0 ~0 -1`; событие soft-delete (`GET /events` → 0) |
 
+## Push end-to-end (Фаза 3, локальный Radicale)
+
+Проверено вручную 19.10.2026 через реальную очередь BullMQ и воркер:
+
+| Локальное действие | Внешний календарь | Итог |
+|--------------------|-------------------|------|
+| `POST /sources/:id/events` | появляется `/dev/e2e/<id>.ics` с UID/SUMMARY/DTSTART | `push … created`, `sync_status='synced'`, `external_etag` |
+| `PATCH /events/:id` | ресурс обновлён (новый DTSTART/SUMMARY) | `push … updated` |
+| `DELETE /events/:id` | `GET` ресурса → **404** | `push … deleted` |
+| правка в Radicale (curl PUT) + `PATCH /events/:id` | внешний объект **не** перезаписан | `push … conflict`, `sync_conflicts` запись, `sync_status='conflict'` |
+
 ## Решение по этапу
 
 - Подтверждено провайдеров: **1 / 2** (Яндекс ✅; нужен ещё Mail.ru или ≥2 суммарно).

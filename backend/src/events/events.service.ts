@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { RealtimeEvents } from '../realtime/realtime.events';
+import { SyncQueueService } from '../sync/queue/sync-queue.service';
 import { isEventMasked, maskEvent } from './event-mask';
 import {
   CreateEventDto,
@@ -35,6 +36,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly spaces: SpacesService,
     private readonly realtime: RealtimeService,
+    private readonly syncQueue: SyncQueueService,
   ) {}
 
   async create(userId: string, sourceId: string, dto: CreateEventDto) {
@@ -61,6 +63,7 @@ export class EventsService {
       source,
       userId,
     );
+    await this.maybeEnqueuePush(event.source_id, event.id);
     return event;
   }
 
@@ -230,6 +233,7 @@ export class EventsService {
       source,
       userId,
     );
+    await this.maybeEnqueuePush(updated.source_id, updated.id);
     return updated;
   }
 
@@ -250,6 +254,7 @@ export class EventsService {
       source,
       userId,
     );
+    await this.maybeEnqueuePush(current.source_id, current.id);
     return { success: true };
   }
 
@@ -308,8 +313,25 @@ export class EventsService {
     return { event, access, source };
   }
 
-  private async resolveSource(userId: string, sourceId: string) {
-    const source = await this.prisma.source.findFirst({
+  /**
+   * Ставит push-задачу, если источник связан с внешним календарём и запись
+   * разрешена (`both`/`out`). Иначе событие остаётся локальным.
+   */
+  private async maybeEnqueuePush(sourceId: string, eventId: string) {
+    const map = await this.prisma.sourceExternalMap.findFirst({
+      where: {
+        source_id: sourceId,
+        sync_status: 'active',
+        sync_direction: { not: 'in' },
+      },
+      select: { id: true },
+    });
+    if (map) {
+      await this.syncQueue.enqueuePush(eventId);
+    }
+  }
+
+  private async resolveSource(userId: string, sourceId: string) {    const source = await this.prisma.source.findFirst({
       where: { id: sourceId, deleted_at: null },
       select: { id: true, space_id: true, visibility: true },
     });

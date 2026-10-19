@@ -476,6 +476,10 @@ credentials = пользователи должны переподключить
 - `ical-parser.spec.ts` — парсинг VEVENT, all-day (`VALUE=DATE`), нормализация
   `Etc/UTC` → `UTC` (Фаза 2).
 - `pull.service.spec.ts` — create/update/skip-по-ETag/delete, статусы (Фаза 2).
+- `ical-serializer.spec.ts` — VEVENT, all-day `VALUE=DATE`, UID, описание/локация
+  (Фаза 3).
+- `push.service.spec.ts` — create/update/delete, конфликт (без дублей), retry
+  (Фаза 3).
 - `links.service.spec.ts`, `sync.controller.spec.ts` — link/unlink/force (Фаза 2).
 - `provider.factory.spec.ts`, `connections.service.spec.ts` — Фаза 1.
 - `conflict.resolver.spec.ts` — все 9 строк таблицы §4.3 (Фаза 3).
@@ -521,6 +525,7 @@ Playwright: подключение → связывание → событие �
 |------|------------|--------|
 | 1 | Подключения CalDAV + `listCalendars` | ✅ закрыта (Radicale + Яндекс) |
 | 2 | Pull: iCal-парсер, ETag-diff, link, воркер | ✅ реализовано |
+| 3 | Push: сериализация iCal, create/update/delete, конфликты | ✅ реализовано |
 
 **Фаза 2 — детали:**
 - Парсер: `node-ical`, нормализация all-day → UTC-полночь, `Etc/UTC` → `UTC`.
@@ -534,11 +539,34 @@ Playwright: подключение → связывание → событие �
   ETag) → update → delete через реальные очередь и воркер.
 - Интеграционный тест против реального Яндекса: `listCalendars` 207 (Фаза 1).
 
-**Отклонения, принятые пользователем:**
+**Фаза 3 — детали:**
+- `ical-serializer.ts` (`ical-generator`): VEVENT в UTC, `UID = external_id ?? id`,
+  all-day → `VALUE=DATE`, `lastModified = updated_at`.
+- `SyncProvider.push(calendarId, event)`: `etag === null` → создание
+  (`If-None-Match: *`, имя `${uid}.ics`), иначе обновление (`If-Match: etag`,
+  объект ищется по UID). Возвращает актуальный ETag (из заголовка ответа, при
+  отсутствии — повторный PROPFIND). `delete(calendarId, uid)` находит объект по
+  UID и удаляет; отсутствие — не ошибка.
+- Конфликт: HTTP **412**/404 → `SyncConflictError` → `PushService` пишет
+  `SyncConflict` (без дублей) и `Event.sync_status = 'conflict'`. Транзиентные
+  ошибки пробрасываются для retry (3 попытки, backoff 5 → 10 → 20 сек).
+- Триггеры: `EventsService.create/update/remove` ставят push-задачу
+  (`SyncQueueService.enqueuePush`), если источник связан внешне и направление
+  `both`/`out`. Задача выносится в отдельный `SyncQueueModule` (без циклов
+  зависимостей между `EventsModule` и `SyncModule`).
+- Проверено end-to-end на Radicale: create/update/delete отражаются во внешнем
+  календаре; смоделированный конфликт (правка снаружи + локальная правка) →
+  `SyncConflict`, внешний объект не перезаписан.
+
+**Отклонения/известные ограничения:**
 - Воркер — чистый `bullmq` (без `@nestjs/bullmq`).
 - Radicale — только для dev/personal (не публичный провайдер).
 - `ENCRYPTION_KEY` — в `backend/.env`, не в KMS.
 - Инкремент `syncToken` — отложен до Фазы 6 (full-fetch + ETag).
+- Поиск внешнего объекта по UID при push делает полную выборку календаря —
+  для MVP приемлемо; при больших календарях вынести хранимый URL в схему.
+- `DELETE /sources/:id/link` пока не переводит `synced`-события в `local`
+  (§5.3) — вынести в Фазу 4 (UI) / отдельную задачу.
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.

@@ -35,7 +35,7 @@ export class SyncController {
       select: { id: true },
     });
     for (const map of maps) {
-      await this.queue.enqueue({ sourceMapId: map.id });
+      await this.queue.enqueuePull(map.id);
     }
     return { queued: maps.length };
   }

@@ -1,3 +1,4 @@
+import { SyncConflictError } from '../sync-errors';
 import { CaldavProvider, DavClient, DavClientFactory } from './caldav.provider';
 import { ProviderCredentials } from './sync-provider.interface';
 
@@ -25,10 +26,25 @@ function ics(uid: string, summary: string): string {
   ].join('\r\n');
 }
 
+function resp(status: number, etag?: string): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: `${status}`,
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === 'etag' ? (etag ?? null) : null,
+    },
+  } as unknown as Response;
+}
+
 function davClient(overrides: Partial<DavClient> = {}): DavClient {
   return {
     fetchCalendars: jest.fn().mockResolvedValue([]),
     fetchCalendarObjects: jest.fn().mockResolvedValue([]),
+    createCalendarObject: jest.fn().mockResolvedValue(resp(201)),
+    updateCalendarObject: jest.fn().mockResolvedValue(resp(204)),
+    deleteCalendarObject: jest.fn().mockResolvedValue(resp(204)),
     ...overrides,
   };
 }
@@ -100,14 +116,152 @@ describe('CaldavProvider', () => {
     expect(result.events[0].etag).toBeNull();
   });
 
-  it('push/delete ещё не реализованы (Фаза 3)', async () => {
-    const provider = new CaldavProvider(credentials, 'mailru', jest.fn());
+  it('push создаёт новое событие (etag null) как UID.ics и читает ETag из ответа', async () => {
+    const createCalendarObject = jest
+      .fn()
+      .mockResolvedValue(resp(201, '"new-etag"'));
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(davClient({ createCalendarObject })),
+    );
+
+    const result = await provider.push(CALENDAR_URL, {
+      uid: 'a',
+      etag: null,
+      ical: ics('a', 'A'),
+    });
+
+    expect(createCalendarObject).toHaveBeenCalledWith(
+      CALENDAR_URL,
+      'a.ics',
+      ics('a', 'A'),
+    );
+    expect(result).toEqual({ uid: 'a', etag: '"new-etag"', ical: ics('a', 'A') });
+  });
+
+  it('push обновляет существующее событие (etag задан) с If-Match', async () => {
+    const fetchCalendarObjects = jest
+      .fn()
+      .mockResolvedValue([
+        { url: `${CALENDAR_URL}a.ics`, etag: '"old"', data: ics('a', 'A') },
+      ]);
+    const updateCalendarObject = jest
+      .fn()
+      .mockResolvedValue(resp(204, '"updated"'));
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({ fetchCalendarObjects, updateCalendarObject }),
+      ),
+    );
+
+    const result = await provider.push(CALENDAR_URL, {
+      uid: 'a',
+      etag: '"old"',
+      ical: ics('a', 'A2'),
+    });
+
+    expect(updateCalendarObject).toHaveBeenCalledWith(
+      `${CALENDAR_URL}a.ics`,
+      '"old"',
+      ics('a', 'A2'),
+    );
+    expect(result.etag).toBe('"updated"');
+  });
+
+  it('push перечитывает ETag, если сервер не вернул заголовок', async () => {
+    const createCalendarObject = jest.fn().mockResolvedValue(resp(201));
+    const fetchCalendarObjects = jest
+      .fn()
+      .mockResolvedValue([
+        { url: `${CALENDAR_URL}a.ics`, etag: '"fetched"', data: ics('a', 'A') },
+      ]);
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({ createCalendarObject, fetchCalendarObjects }),
+      ),
+    );
+
+    const result = await provider.push(CALENDAR_URL, {
+      uid: 'a',
+      etag: null,
+      ical: ics('a', 'A'),
+    });
+
+    expect(result.etag).toBe('"fetched"');
+  });
+
+  it('push при 412 бросает SyncConflictError', async () => {
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({ createCalendarObject: jest.fn().mockResolvedValue(resp(412)) }),
+      ),
+    );
 
     await expect(
-      provider.push({ uid: 'x', etag: null, ical: '' }),
-    ).rejects.toThrow('Not implemented yet (Phase 3)');
-    await expect(provider.delete(CALENDAR_URL, 'x')).rejects.toThrow(
-      'Not implemented yet (Phase 3)',
+      provider.push(CALENDAR_URL, { uid: 'a', etag: null, ical: ics('a', 'A') }),
+    ).rejects.toBeInstanceOf(SyncConflictError);
+  });
+
+  it('push при отсутствии объекта во внешнем календаре бросает SyncConflictError', async () => {
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({ fetchCalendarObjects: jest.fn().mockResolvedValue([]) }),
+      ),
     );
+
+    await expect(
+      provider.push(CALENDAR_URL, {
+        uid: 'gone',
+        etag: '"x"',
+        ical: ics('gone', 'G'),
+      }),
+    ).rejects.toBeInstanceOf(SyncConflictError);
+  });
+
+  it('delete удаляет объект по UID', async () => {
+    const fetchCalendarObjects = jest
+      .fn()
+      .mockResolvedValue([
+        { url: `${CALENDAR_URL}a.ics`, etag: '"old"', data: ics('a', 'A') },
+      ]);
+    const deleteCalendarObject = jest.fn().mockResolvedValue(resp(204));
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({ fetchCalendarObjects, deleteCalendarObject }),
+      ),
+    );
+
+    await provider.delete(CALENDAR_URL, 'a');
+
+    expect(deleteCalendarObject).toHaveBeenCalledWith(`${CALENDAR_URL}a.ics`);
+  });
+
+  it('delete игнорирует отсутствие объекта', async () => {
+    const deleteCalendarObject = jest.fn();
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({
+          fetchCalendarObjects: jest.fn().mockResolvedValue([]),
+          deleteCalendarObject,
+        }),
+      ),
+    );
+
+    await provider.delete(CALENDAR_URL, 'missing');
+
+    expect(deleteCalendarObject).not.toHaveBeenCalled();
   });
 });

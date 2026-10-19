@@ -18,11 +18,30 @@ export class SyncQueueService implements OnModuleDestroy {
     });
   }
 
-  async enqueue(data: SyncJobData): Promise<void> {
-    await this.queue.add('sync', data, {
-      removeOnComplete: true,
-      removeOnFail: 100,
-    });
+  /** Ставит задачу pull (синхронизация источника из внешнего календаря). */
+  async enqueuePull(sourceMapId: string): Promise<void> {
+    await this.queue.add(
+      'pull',
+      { sourceMapId },
+      { removeOnComplete: true, removeOnFail: 100 },
+    );
+  }
+
+  /**
+   * Ставит задачу push (запись события во внешний календарь) с ретраями и
+   * экспоненциальной задержкой согласно `docs/sync.md` §8.3 / §10.
+   */
+  async enqueuePush(eventId: string): Promise<void> {
+    await this.queue.add(
+      'push',
+      { pushEventId: eventId },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+        removeOnFail: 100,
+      },
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

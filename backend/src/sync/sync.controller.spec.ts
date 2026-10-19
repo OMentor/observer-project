@@ -8,7 +8,7 @@ function build(maps: Array<{ id: string }>, connection: unknown = { id: 'c1' }) 
     externalConnection: { findFirst: jest.fn().mockResolvedValue(connection) },
     sourceExternalMap: { findMany: jest.fn().mockResolvedValue(maps) },
   };
-  const queue = { enqueue: jest.fn().mockResolvedValue(undefined) };
+  const queue = { enqueuePull: jest.fn().mockResolvedValue(undefined) };
   const controller = new SyncController(
     prisma as unknown as PrismaService,
     queue as unknown as SyncQueueService,
@@ -23,9 +23,9 @@ describe('SyncController', () => {
     const result = await controller.force({ id: 'user1' } as never, 'c1');
 
     expect(result).toEqual({ queued: 2 });
-    expect(queue.enqueue).toHaveBeenCalledTimes(2);
-    expect(queue.enqueue).toHaveBeenCalledWith({ sourceMapId: 'm1' });
-    expect(queue.enqueue).toHaveBeenCalledWith({ sourceMapId: 'm2' });
+    expect(queue.enqueuePull).toHaveBeenCalledTimes(2);
+    expect(queue.enqueuePull).toHaveBeenCalledWith('m1');
+    expect(queue.enqueuePull).toHaveBeenCalledWith('m2');
   });
 
   it('бросает NotFound для чужого подключения', async () => {

@@ -13,10 +13,12 @@ describe('EventsService', () => {
     source: { findFirst: jest.Mock };
     space: { findMany: jest.Mock };
     eventHistory: { create: jest.Mock; findMany: jest.Mock };
+    sourceExternalMap: { findFirst: jest.Mock };
     $transaction: jest.Mock;
   };
   let spaces: { getAccess: jest.Mock; ensureMember: jest.Mock };
   let realtime: { eventChanged: jest.Mock };
+  let syncQueue: { enqueuePush: jest.Mock };
   let service: EventsService;
 
   const baseEvent = {
@@ -55,14 +57,17 @@ describe('EventsService', () => {
       source: { findFirst: jest.fn() },
       space: { findMany: jest.fn() },
       eventHistory: { create: jest.fn(), findMany: jest.fn() },
+      sourceExternalMap: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
     spaces = { getAccess: jest.fn(), ensureMember: jest.fn() };
     realtime = { eventChanged: jest.fn().mockResolvedValue(undefined) };
+    syncQueue = { enqueuePush: jest.fn().mockResolvedValue(undefined) };
     service = new EventsService(
       prisma as never,
       spaces as never,
       realtime as never,
+      syncQueue as never,
     );
   });
 
@@ -84,8 +89,36 @@ describe('EventsService', () => {
     );
   });
 
-  it('update пишет историю UPDATED со старыми и новыми данными', async () => {
-    prisma.source.findFirst.mockResolvedValue({ space_id: 'sp1' });
+  it('ставит push-задачу, если источник связан с внешним календарём', async () => {
+    prisma.source.findFirst.mockResolvedValue({ id: 'src1', space_id: 'sp1' });
+    spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
+    prisma.event.create.mockResolvedValue(baseEvent);
+    prisma.sourceExternalMap.findFirst.mockResolvedValue({ id: 'map1' });
+
+    await service.create('u1', 'src1', {
+      title: 'Созвон',
+      start_at: new Date('2026-01-01T10:00:00.000Z'),
+      end_at: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    expect(syncQueue.enqueuePush).toHaveBeenCalledWith('e1');
+  });
+
+  it('не ставит push-задачу для источника без внешней связи', async () => {
+    prisma.source.findFirst.mockResolvedValue({ id: 'src1', space_id: 'sp1' });
+    spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
+    prisma.event.create.mockResolvedValue(baseEvent);
+
+    await service.create('u1', 'src1', {
+      title: 'Созвон',
+      start_at: new Date('2026-01-01T10:00:00.000Z'),
+      end_at: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    expect(syncQueue.enqueuePush).not.toHaveBeenCalled();
+  });
+
+  it('update пишет историю UPDATED со старыми и новыми данными', async () => {    prisma.source.findFirst.mockResolvedValue({ space_id: 'sp1' });
     spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
     prisma.event.findFirst.mockResolvedValue(baseEvent);
     prisma.event.update.mockResolvedValue({ ...baseEvent, title: 'Правка' });
