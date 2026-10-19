@@ -21,6 +21,7 @@ export interface MonthMiniProps {
   showDots?: boolean;
   onSelectDay: (date: Date) => void;
   onSelectMonth?: (month: Date) => void;
+  onDropDay?: (date: Date) => void;
 }
 
 export const MonthMini = memo(function MonthMini({
@@ -33,6 +34,7 @@ export const MonthMini = memo(function MonthMini({
   showDots = true,
   onSelectDay,
   onSelectMonth,
+  onDropDay,
 }: MonthMiniProps) {
   const weeks = useMemo(() => monthGrid(month), [month]);
   const weekdayLabels = hideWeekends ? WEEKDAYS_WORK : WEEKDAYS_SHORT;
@@ -89,6 +91,7 @@ export const MonthMini = memo(function MonthMini({
               showDots={showDots}
               label={`${date.getDate()} ${monthLabel(date)}`}
               onSelect={onSelectDay}
+              onDropDay={onDropDay}
             />
           );
         })}

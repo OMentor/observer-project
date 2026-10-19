@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { cn } from '@/lib/cn';
 import { MonthMini } from '@/features/calendar/views/quarter/MonthMini';
+import { isYearWindow } from '@/features/calendar/lib/quarterRange';
 import type { CalendarEvent } from '@/lib/types';
 
 export interface QuarterGridProps {
@@ -13,6 +14,7 @@ export interface QuarterGridProps {
   showDots?: boolean;
   onSelectDay: (date: Date) => void;
   onSelectMonth?: (month: Date) => void;
+  onDropDay?: (date: Date) => void;
 }
 
 export const QuarterGrid = memo(function QuarterGrid({
@@ -25,9 +27,11 @@ export const QuarterGrid = memo(function QuarterGrid({
   showDots = true,
   onSelectDay,
   onSelectMonth,
+  onDropDay,
 }: QuarterGridProps) {
-  const gridClass =
-    months.length <= 4
+  const gridClass = isYearWindow(months.length)
+    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+    : months.length <= 4
       ? 'grid-cols-1 md:grid-cols-2'
       : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
@@ -45,6 +49,7 @@ export const QuarterGrid = memo(function QuarterGrid({
           showDots={showDots}
           onSelectDay={onSelectDay}
           onSelectMonth={onSelectMonth}
+          onDropDay={onDropDay}
         />
       ))}
     </div>

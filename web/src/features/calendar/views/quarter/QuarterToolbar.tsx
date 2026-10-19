@@ -10,6 +10,7 @@ export interface QuarterToolbarProps {
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
+  kind?: 'quarter' | 'year';
 }
 
 export function QuarterToolbar({
@@ -20,8 +21,10 @@ export function QuarterToolbar({
   onPrev,
   onNext,
   onToday,
+  kind = 'quarter',
 }: QuarterToolbarProps) {
   const hasValue = options.some((option) => option.key === value);
+  const unit = kind === 'year' ? 'год' : 'квартал';
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -29,7 +32,7 @@ export function QuarterToolbar({
         variant="secondary"
         size="icon"
         onClick={onPrev}
-        aria-label="Предыдущий квартал"
+        aria-label={`Предыдущий ${unit}`}
       >
         <ChevronLeft className="size-4" />
       </Button>
@@ -37,7 +40,7 @@ export function QuarterToolbar({
         variant="secondary"
         size="icon"
         onClick={onNext}
-        aria-label="Следующий квартал"
+        aria-label={`Следующий ${unit}`}
       >
         <ChevronRight className="size-4" />
       </Button>
@@ -53,7 +56,7 @@ export function QuarterToolbar({
           containerClassName="w-[140px]"
           value={hasValue ? value : ''}
           onChange={(event) => onChange(event.target.value)}
-          aria-label="Переход к кварталу"
+          aria-label={`Переход к ${kind === 'year' ? 'году' : 'кварталу'}`}
         >
           {!hasValue && <option value="">{value}</option>}
           {options.map((option) => (

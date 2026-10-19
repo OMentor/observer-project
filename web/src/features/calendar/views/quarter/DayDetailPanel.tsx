@@ -17,6 +17,7 @@ export interface DayDetailPanelProps {
   error?: boolean;
   onAddEvent?: (date: Date) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
+  onDragEvent?: (event: CalendarEvent) => void;
   onClose?: () => void;
 }
 
@@ -28,6 +29,7 @@ export function DayDetailPanel({
   error = false,
   onAddEvent,
   onOpenEvent,
+  onDragEvent,
   onClose,
 }: DayDetailPanelProps) {
   return (
@@ -84,6 +86,19 @@ export function DayDetailPanel({
                         <button
                           type="button"
                           onClick={() => onOpenEvent?.(event)}
+                          draggable={Boolean(onDragEvent)}
+                          onDragStart={
+                            onDragEvent
+                              ? (dragEvent) => {
+                                  dragEvent.dataTransfer.effectAllowed = 'move';
+                                  dragEvent.dataTransfer.setData(
+                                    'text/plain',
+                                    event.id,
+                                  );
+                                  onDragEvent(event);
+                                }
+                              : undefined
+                          }
                           className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150 hover:bg-bg-elevated focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                         >
                           {!event.all_day && (

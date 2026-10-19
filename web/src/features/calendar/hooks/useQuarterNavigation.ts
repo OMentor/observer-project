@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   QUARTER_MONTHS,
   addMonths,
-  quarterKey,
-  quarterRange,
-  startOfQuarter,
+  windowKey,
   windowLabel,
+  windowStart,
+  quarterRange,
   type QuarterWindow,
 } from '@/features/calendar/lib/quarterRange';
 
@@ -27,7 +27,7 @@ export function useQuarterNavigation(
 ): QuarterNavigation {
   const [today] = useState(() => new Date());
   const [start, setStart] = useState(() =>
-    startOfQuarter(initial ?? today),
+    windowStart(initial ?? today, count),
   );
 
   const range = useMemo(() => quarterRange(start, count), [start, count]);
@@ -41,19 +41,22 @@ export function useQuarterNavigation(
     [count],
   );
   const goToday = useCallback(
-    () => setStart(startOfQuarter(new Date())),
-    [],
+    () => setStart(windowStart(new Date(), count)),
+    [count],
   );
   const goTo = useCallback(
-    (date: Date) => setStart(startOfQuarter(date)),
-    [],
+    (date: Date) => setStart(windowStart(date, count)),
+    [count],
   );
 
   const label = useMemo(
     () => windowLabel(range.months),
     [range.months],
   );
-  const key = useMemo(() => quarterKey(range.start), [range.start]);
+  const key = useMemo(
+    () => windowKey(range.start, count),
+    [range.start, count],
+  );
 
   return { start, range, today, label, key, next, prev, goToday, goTo };
 }

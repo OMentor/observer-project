@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 import type { CalendarEvent, Source } from '@/lib/types';
 import { useEventDensity } from '@/features/calendar/hooks/useEventDensity';
@@ -6,7 +6,13 @@ import { useQuarterNavigation } from '@/features/calendar/hooks/useQuarterNaviga
 import { QuarterToolbar } from '@/features/calendar/views/quarter/QuarterToolbar';
 import { QuarterGrid } from '@/features/calendar/views/quarter/QuarterGrid';
 import { DayDetailPanel } from '@/features/calendar/views/quarter/DayDetailPanel';
-import { addMonths, quarterKey } from '@/features/calendar/lib/quarterRange';
+import {
+  QUARTER_MONTHS,
+  YEAR_MONTHS,
+  addMonths,
+  isYearWindow,
+  quarterKey,
+} from '@/features/calendar/lib/quarterRange';
 import { dayKey } from '@/features/calendar/lib/density';
 
 export interface QuarterViewProps {
@@ -18,12 +24,22 @@ export interface QuarterViewProps {
   onOpenMonth?: (month: Date) => void;
   onAddEvent?: (date: Date) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
+  monthsCount?: number;
+  onRangeChange?: (window: { start: Date; end: Date }) => void;
+  onMoveEvent?: (event: CalendarEvent, target: Date) => void;
 }
 
 function buildQuarterOptions(start: Date) {
   return Array.from({ length: 9 }, (_, index) => {
     const optionStart = addMonths(start, (index - 4) * 3);
     return { key: quarterKey(optionStart), start: optionStart };
+  });
+}
+
+function buildYearOptions(start: Date) {
+  return Array.from({ length: 9 }, (_, index) => {
+    const optionStart = addMonths(start, (index - 4) * YEAR_MONTHS);
+    return { key: String(optionStart.getFullYear()), start: optionStart };
   });
 }
 
@@ -36,12 +52,50 @@ export function QuarterView({
   onOpenMonth,
   onAddEvent,
   onOpenEvent,
+  monthsCount = QUARTER_MONTHS,
+  onRangeChange,
+  onMoveEvent,
 }: QuarterViewProps) {
-  const navigation = useQuarterNavigation(initialDate);
+  const yearMode = isYearWindow(monthsCount);
+  const navigation = useQuarterNavigation(initialDate, monthsCount);
   const density = useEventDensity(events);
   const [selected, setSelected] = useState<Date | null>(null);
   const [hideWeekends, setHideWeekends] = useState(false);
   const [busyOnly, setBusyOnly] = useState(false);
+  const dragEventRef = useRef<CalendarEvent | null>(null);
+
+  const rangeStart = navigation.range.start;
+  const rangeEnd = navigation.range.end;
+
+  useEffect(() => {
+    onRangeChange?.({ start: rangeStart, end: rangeEnd });
+  }, [rangeStart, rangeEnd, onRangeChange]);
+
+  const handleDragEvent = useCallback((event: CalendarEvent) => {
+    dragEventRef.current = event;
+  }, []);
+
+  const handleDropDay = useCallback(
+    (date: Date) => {
+      const dragged = dragEventRef.current;
+      dragEventRef.current = null;
+      if (!dragged || !onMoveEvent) {
+        return;
+      }
+      const source = new Date(dragged.start_at);
+      if (
+        source.getFullYear() !== date.getFullYear() ||
+        source.getMonth() !== date.getMonth()
+      ) {
+        return;
+      }
+      onMoveEvent(dragged, date);
+    },
+    [onMoveEvent],
+  );
+
+  const dropHandler = onMoveEvent ? handleDropDay : undefined;
+  const dragHandler = onMoveEvent ? handleDragEvent : undefined;
 
   const colorBySource = useMemo(() => {
     const map = new Map<string, string>();
@@ -49,9 +103,12 @@ export function QuarterView({
     return map;
   }, [sources]);
 
-  const quarterOptions = useMemo(
-    () => buildQuarterOptions(navigation.start),
-    [navigation.start],
+  const windowOptions = useMemo(
+    () =>
+      yearMode
+        ? buildYearOptions(navigation.start)
+        : buildQuarterOptions(navigation.start),
+    [navigation.start, yearMode],
   );
 
   const selectedKey = selected ? dayKey(selected) : null;
@@ -66,9 +123,10 @@ export function QuarterView({
           <QuarterToolbar
             label={navigation.label}
             value={navigation.key}
-            options={quarterOptions}
+            options={windowOptions}
+            kind={yearMode ? 'year' : 'quarter'}
             onChange={(key) => {
-              const option = quarterOptions.find((item) => item.key === key);
+              const option = windowOptions.find((item) => item.key === key);
               if (option) {
                 navigation.goTo(option.start);
               }
@@ -117,6 +175,7 @@ export function QuarterView({
           showDots={!busyOnly}
           onSelectDay={(date) => setSelected(date)}
           onSelectMonth={onOpenMonth}
+          onDropDay={dropHandler}
         />
       </div>
 
@@ -128,6 +187,7 @@ export function QuarterView({
         error={error}
         onAddEvent={onAddEvent}
         onOpenEvent={onOpenEvent}
+        onDragEvent={dragHandler}
         onClose={() => setSelected(null)}
       />
     </div>
