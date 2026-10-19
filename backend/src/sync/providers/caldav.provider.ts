@@ -17,13 +17,28 @@ export type DavClientFactory = (
   credentials: ProviderCredentials,
 ) => Promise<DavClient>;
 
-const defaultFactory: DavClientFactory = ({ url, username, password }) =>
-  createDAVClient({
+/** Яндекс требует явный User-Agent, иначе может вернуть 403. */
+const USER_AGENT = 'Pletenie/0.1 (Sync-Engine)';
+
+const defaultFactory: DavClientFactory = ({ url, username, password }) => {
+  const baseFetch = globalThis.fetch;
+  const fetchWithUserAgent = (async (
+    input: Parameters<typeof baseFetch>[0],
+    init?: Parameters<typeof baseFetch>[1],
+  ) => {
+    const headers = new Headers(init?.headers);
+    headers.set('User-Agent', USER_AGENT);
+    return baseFetch(input, { ...init, headers });
+  }) as typeof baseFetch;
+
+  return createDAVClient({
     serverUrl: url,
     credentials: { username, password },
     authMethod: 'Basic',
     defaultAccountType: 'caldav',
+    fetch: fetchWithUserAgent,
   });
+};
 
 /**
  * CalDAV-провайдер (Яндекс, Mail.ru, локальный Radicale).

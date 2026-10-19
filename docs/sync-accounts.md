@@ -36,14 +36,26 @@ curl -u "$LOGIN:$APP_PASSWORD" -X PROPFIND \
 
 | Провайдер | Дата | PROPFIND корень | PROPFIND календари | Список календарей | Заметки | Итог |
 |-----------|------|-----------------|--------------------|-------------------|---------|------|
-| Яндекс | — | — | — | — | ожидаем пароль | не проверено |
+| Яндекс | 19.10.2026 | 207 | 207 | 2 («Мои события», «Не забыть») | home-set `/calendars/fingertrax111@yandex.ru/`; tsdav вернул 2 календаря | ✅ работает |
 | Mail.ru | — | — | — | — | ожидаем пароль | не проверено |
 | Apple iCloud | 19.10.2026 | — | — | — | отложен до Этапа 7 (нет iPhone/Mac) | отложен |
 | Radicale (local) | 19.10.2026 | 207 | — | — | `http://localhost:5232`, `auth none`, principal `/dev/` | ok (dev) |
 
 ## Решение по этапу
 
-- Подтверждено провайдеров: **0 / 2** (нужно ≥2; Apple отложен).
-- Разработка Фазы 1 (CalDAV-адаптер) идёт против локального Radicale, чтобы не
-  блокироваться на получении паролей Яндекса/Mail.ru.
+- Подтверждено провайдеров: **1 / 2** (Яндекс ✅; нужен ещё Mail.ru или ≥2 суммарно).
+- Разработка Фазы 1 (CalDAV-адаптер) велась против локального Radicale и
+  подтверждена на реальном Яндексе (интеграционный тест
+  `backend/src/sync/providers/caldav.provider.integration.spec.ts`, пропускается
+  без `YANDEX_TEST_LOGIN/PASS` в локальном `.env`).
 - Apple отложен до Этапа 7 — scope Фазы 1 не меняется (Яндекс + Mail.ru).
+
+## Заметки по Яндексу
+
+- Базовый URL: `https://caldav.yandex.ru`; discovery: `current-user-principal`
+  → `/principals/users/<login>/` → `calendar-home-set`
+  → `/calendars/<login>/`.
+- tsdav (Node fetch) прошёл и без явного `User-Agent`, но провайдер отправляет
+  `User-Agent: Pletenie/0.1 (Sync-Engine)` защитно (Яндекс может блокировать без него).
+- `todos-*` возвращается как календарь (`resourcetype: calendar`); фильтрация
+  задач (VTODO) — вне scope MVP.
