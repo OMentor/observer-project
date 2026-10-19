@@ -29,6 +29,11 @@ const MONTHS_SHORT = [
 ];
 
 export const QUARTER_MONTHS = 4;
+export const YEAR_MONTHS = 12;
+
+export function isYearWindow(count: number): boolean {
+  return count >= YEAR_MONTHS;
+}
 
 export type QuarterWindow = {
   start: Date;
@@ -51,6 +56,18 @@ export function startOfQuarter(date: Date): Date {
   return new Date(date.getFullYear(), month, 1);
 }
 
+export function startOfYear(date: Date): Date {
+  return new Date(date.getFullYear(), 0, 1);
+}
+
+export function windowStart(date: Date, count: number): Date {
+  return isYearWindow(count) ? startOfYear(date) : startOfQuarter(date);
+}
+
+export function windowKey(start: Date, count: number): string {
+  return isYearWindow(count) ? String(start.getFullYear()) : quarterKey(start);
+}
+
 export function monthLabel(date: Date): string {
   return `${MONTHS_NOMINATIVE[date.getMonth()]} ${date.getFullYear()}`;
 }
@@ -61,6 +78,14 @@ export function windowLabel(months: Date[]): string {
   }
   const first = months[0];
   const last = months[months.length - 1];
+  if (
+    months.length === YEAR_MONTHS &&
+    first.getMonth() === 0 &&
+    last.getMonth() === 11 &&
+    first.getFullYear() === last.getFullYear()
+  ) {
+    return String(first.getFullYear());
+  }
   const startLabel = MONTHS_SHORT[first.getMonth()];
   const endLabel = MONTHS_SHORT[last.getMonth()];
   if (first.getFullYear() === last.getFullYear()) {
@@ -78,7 +103,7 @@ export function quarterRange(
   anchor: Date,
   count = QUARTER_MONTHS,
 ): QuarterWindow {
-  const start = startOfQuarter(anchor);
+  const start = windowStart(anchor, count);
   const months = Array.from({ length: count }, (_, index) =>
     addMonths(start, index),
   );
@@ -88,7 +113,7 @@ export function quarterRange(
     end,
     months,
     label: windowLabel(months),
-    key: quarterKey(start),
+    key: windowKey(start, count),
   };
 }
 

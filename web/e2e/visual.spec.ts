@@ -62,6 +62,27 @@ test.describe('Плетение · visual regression', () => {
         });
       });
 
+      test(`calendar year (${theme})`, async ({ page }) => {
+        await page.clock.setFixedTime(FIXED_TIME);
+        await applyTheme(page, theme);
+        await login(page);
+        await page.goto('/calendar');
+        await expect(
+          page.getByRole('heading', { name: /Сводный календарь/ }).first(),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'Год', exact: true }).click();
+        await expect(
+          page.getByRole('combobox', { name: 'Переход к году' }),
+        ).toBeVisible();
+        await settle(page);
+        await expect(page).toHaveScreenshot(`${theme}-calendar-year.png`, {
+          fullPage: true,
+          animations: 'disabled',
+          mask: [page.getByRole('status')],
+          maxDiffPixelRatio: 0.02,
+        });
+      });
+
       for (const target of PAGES) {
         test(`${target.name} (${theme})`, async ({ page }) => {
           await page.clock.setFixedTime(FIXED_TIME);

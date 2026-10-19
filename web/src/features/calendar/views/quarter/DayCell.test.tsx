@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DayCell } from '@/features/calendar/views/quarter/DayCell';
@@ -32,6 +32,15 @@ describe('DayCell', () => {
       'aria-current',
       'date',
     );
+  });
+
+  it('reports a dropped day when a drop handler is provided', () => {
+    const onDropDay = vi.fn();
+    render(<DayCell {...base} label="15 октября" onDropDay={onDropDay} />);
+    const cell = screen.getByRole('button', { name: '15 октября' });
+    fireEvent.dragOver(cell, { dataTransfer: { dropEffect: '' } });
+    fireEvent.drop(cell, { dataTransfer: {} });
+    expect(onDropDay).toHaveBeenCalledWith(base.date);
   });
 
   it('hides dots when the day is outside the month', () => {

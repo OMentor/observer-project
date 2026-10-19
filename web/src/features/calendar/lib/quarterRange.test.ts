@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  YEAR_MONTHS,
   addMonths,
+  isYearWindow,
   monthGrid,
   monthLabel,
   quarterKey,
@@ -8,6 +10,7 @@ import {
   sameDay,
   startOfQuarter,
   startOfWeek,
+  startOfYear,
   windowLabel,
 } from '@/features/calendar/lib/quarterRange';
 
@@ -73,5 +76,36 @@ describe('quarterRange', () => {
 
   it('formats a month label', () => {
     expect(monthLabel(new Date(2026, 9, 1))).toBe('Октябрь 2026');
+  });
+});
+
+describe('year window', () => {
+  it('floors a date to the start of its year and detects the mode', () => {
+    expect(startOfYear(new Date(2026, 9, 15))).toEqual(new Date(2026, 0, 1));
+    expect(isYearWindow(YEAR_MONTHS)).toBe(true);
+    expect(isYearWindow(12)).toBe(true);
+    expect(isYearWindow(4)).toBe(false);
+  });
+
+  it('builds a twelve-month window starting in January', () => {
+    const range = quarterRange(new Date(2026, 9, 15), YEAR_MONTHS);
+    expect(range.months).toHaveLength(12);
+    expect(range.months[0]).toEqual(new Date(2026, 0, 1));
+    expect(range.months[6]).toEqual(new Date(2026, 6, 1));
+    expect(range.months[11]).toEqual(new Date(2026, 11, 1));
+    expect(range.start).toEqual(new Date(2026, 0, 1));
+    expect(range.end).toEqual(new Date(2027, 0, 1));
+  });
+
+  it('labels a year window with the bare year', () => {
+    const range = quarterRange(new Date(2026, 9, 15), YEAR_MONTHS);
+    expect(range.label).toBe('2026');
+    expect(range.key).toBe('2026');
+  });
+
+  it('keeps quarter labelling for the default window', () => {
+    const range = quarterRange(new Date(2026, 9, 15));
+    expect(range.months).toHaveLength(4);
+    expect(range.key).toBe('Q4 2026');
   });
 });

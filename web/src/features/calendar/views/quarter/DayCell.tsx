@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { cn } from '@/lib/cn';
 import { DensityDots } from '@/features/calendar/views/quarter/DensityDots';
 import { densityClass, type DensityLevel } from '@/features/calendar/lib/density';
@@ -15,6 +15,7 @@ export interface DayCellProps {
   showDots?: boolean;
   label?: string;
   onSelect: (date: Date) => void;
+  onDropDay?: (date: Date) => void;
 }
 
 export const DayCell = memo(function DayCell({
@@ -29,13 +30,36 @@ export const DayCell = memo(function DayCell({
   showDots = true,
   label,
   onSelect,
+  onDropDay,
 }: DayCellProps) {
+  const [dragOver, setDragOver] = useState(false);
+  const dropEnabled = Boolean(onDropDay);
+
   return (
     <button
       type="button"
       onClick={() => onSelect(date)}
       aria-label={label}
       aria-current={isToday ? 'date' : undefined}
+      onDragOver={
+        dropEnabled
+          ? (event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }
+          : undefined
+      }
+      onDragEnter={dropEnabled ? () => setDragOver(true) : undefined}
+      onDragLeave={dropEnabled ? () => setDragOver(false) : undefined}
+      onDrop={
+        dropEnabled
+          ? (event) => {
+              event.preventDefault();
+              setDragOver(false);
+              onDropDay?.(date);
+            }
+          : undefined
+      }
       className={cn(
         'flex h-14 flex-col items-start gap-1 rounded-md px-1.5 py-1 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent',
         inMonth ? 'text-text-secondary' : 'text-text-muted opacity-40',
@@ -45,6 +69,7 @@ export const DayCell = memo(function DayCell({
         isToday && 'ring-1 ring-accent',
         isSelected && 'bg-accent-muted ring-2 ring-accent',
         'hover:ring-1 hover:ring-accent',
+        dragOver && 'ring-2 ring-accent ring-offset-1 ring-offset-bg-surface',
       )}
     >
       <span

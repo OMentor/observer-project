@@ -99,6 +99,31 @@ export async function fetchEventPage(params: EventQuery) {
   return data;
 }
 
+const EVENT_PAGE_SIZE = 200;
+const MAX_EVENT_PAGES = 10;
+
+export async function fetchEventPages(params: EventQuery): Promise<EventPage> {
+  const first = await fetchEventPage({
+    ...params,
+    page: 1,
+    pageSize: EVENT_PAGE_SIZE,
+  });
+  const items = [...first.items];
+  const totalPages = Math.min(
+    Math.max(1, Math.ceil(first.total / EVENT_PAGE_SIZE)),
+    MAX_EVENT_PAGES,
+  );
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await fetchEventPage({
+      ...params,
+      page,
+      pageSize: EVENT_PAGE_SIZE,
+    });
+    items.push(...next.items);
+  }
+  return { ...first, items, page: 1, pageSize: EVENT_PAGE_SIZE };
+}
+
 export async function createEvent(sourceId: string, payload: EventPayload) {
   const { data } = await api.post<CalendarEvent>(
     `/sources/${sourceId}/events`,

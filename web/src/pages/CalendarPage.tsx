@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -13,7 +13,7 @@ import type {
 } from '@fullcalendar/core';
 import ruLocale from '@fullcalendar/core/locales/ru';
 import { Plus, Search, X } from 'lucide-react';
-import { fetchEventPage, fetchSpaces, updateEvent } from '@/lib/services';
+import { fetchEventPages, fetchSpaces, updateEvent } from '@/lib/services';
 import type { CalendarEvent, EventPayload, Source } from '@/lib/types';
 import { useAccessMap } from '@/hooks/access';
 import { useAuthStore } from '@/store/auth';
@@ -24,6 +24,12 @@ import { Select } from '@/components/ui/select';
 import { EventDialog } from '@/components/EventDialog';
 import { QuarterView } from '@/features/calendar/views/quarter/QuarterView';
 import { YearMiniMap } from '@/features/calendar/views/year/YearMiniMap';
+import {
+  QUARTER_MONTHS,
+  YEAR_MONTHS,
+} from '@/features/calendar/lib/quarterRange';
+
+type CalendarMode = 'normal' | 'quarter' | 'year';
 
 function renderEventContent(arg: EventContentArg) {
   const color = (arg.event.backgroundColor as string) ?? 'var(--accent)';
@@ -60,7 +66,14 @@ export function CalendarPage() {
   const [search, setSearch] = useState('');
   const [range, setRange] = useState<{ from?: string; to?: string }>({});
   const calendarRef = useRef<FullCalendar>(null);
-  const [quarterMode, setQuarterMode] = useState(false);
+  const [mode, setMode] = useState<CalendarMode>('normal');
+  const [, startTransition] = useTransition();
+  const switchMode = (next: CalendarMode) =>
+    startTransition(() => setMode(next));
+  const [windowRange, setWindowRange] = useState<{
+    from?: string;
+    to?: string;
+  }>({});
   const [miniYear, setMiniYear] = useState(() => new Date().getFullYear());
   const [miniMonth, setMiniMonth] = useState<number | null>(null);
   const [today] = useState(() => new Date());
@@ -101,13 +114,12 @@ export function CalendarPage() {
       { spaceFilter, effectiveSourceFilter, search, range },
     ],
     queryFn: () =>
-      fetchEventPage({
+      fetchEventPages({
         space_id: spaceFilter || undefined,
         source_id: effectiveSourceFilter || undefined,
         q: search.trim() || undefined,
         from: range.from,
         to: range.to,
-        pageSize: 200,
       }),
     enabled: sources.length > 0,
   });
@@ -120,18 +132,47 @@ export function CalendarPage() {
       { spaceFilter, effectiveSourceFilter, search, miniYear },
     ],
     queryFn: () =>
-      fetchEventPage({
+      fetchEventPages({
         space_id: spaceFilter || undefined,
         source_id: effectiveSourceFilter || undefined,
         q: search.trim() || undefined,
         from: new Date(miniYear, 0, 1).toISOString(),
         to: new Date(miniYear + 1, 0, 1).toISOString(),
-        pageSize: 500,
       }),
     enabled: sources.length > 0,
   });
 
   const yearEvents = yearPage?.items ?? [];
+
+  const { data: windowPage, isLoading: windowLoading } = useQuery({
+    queryKey: [
+      'event-window',
+      { spaceFilter, effectiveSourceFilter, search, windowRange },
+    ],
+    queryFn: () =>
+      fetchEventPages({
+        space_id: spaceFilter || undefined,
+        source_id: effectiveSourceFilter || undefined,
+        q: search.trim() || undefined,
+        from: windowRange.from,
+        to: windowRange.to,
+      }),
+    enabled:
+      sources.length > 0 && mode !== 'normal' && Boolean(windowRange.from),
+  });
+
+  const windowEvents = windowPage?.items ?? [];
+
+  const applyWindowRange = useCallback(
+    (window: { start: Date; end: Date }) => {
+      const from = window.start.toISOString();
+      const to = window.end.toISOString();
+      setWindowRange((prev) =>
+        prev.from === from && prev.to === to ? prev : { from, to },
+      );
+    },
+    [],
+  );
 
   const colorBySource = useMemo(() => {
     const map = new Map<string, string>();
@@ -188,6 +229,8 @@ export function CalendarPage() {
     }) => updateEvent(id, payload),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['event-page'] });
+      queryClient.invalidateQueries({ queryKey: ['event-window'] });
+      queryClient.invalidateQueries({ queryKey: ['event-year'] });
     },
   });
 
@@ -202,7 +245,9 @@ export function CalendarPage() {
   };
 
   const openEdit = (eventId: string) => {
-    const found = events.find((event) => event.id === eventId);
+    const found =
+      events.find((event) => event.id === eventId) ??
+      windowEvents.find((event) => event.id === eventId);
     if (!found || !canEditEvent(found)) {
       return;
     }
@@ -215,14 +260,10 @@ export function CalendarPage() {
 
   const onEventClick = (info: EventClickArg) => openEdit(info.event.id);
 
-  const applyMove = (id: string, start: Date, end: Date | null) => {
-    const found = events.find((event) => event.id === id);
-    if (!found) {
-      return;
-    }
+  const applyMove = (found: CalendarEvent, start: Date, end: Date | null) => {
     const endDate = end ?? new Date(start.getTime() + 3600_000);
     moveMutation.mutate({
-      id,
+      id: found.id,
       payload: {
         title: found.title,
         start_at: start.toISOString(),
@@ -235,20 +276,44 @@ export function CalendarPage() {
     });
   };
 
+  const findEvent = (id: string): CalendarEvent | undefined =>
+    events.find((event) => event.id === id) ??
+    windowEvents.find((event) => event.id === id);
+
   const onEventDrop = (info: EventDropArg) => {
-    if (!info.event.start) {
+    const found = findEvent(info.event.id);
+    if (!found || !info.event.start) {
       info.revert();
       return;
     }
-    applyMove(info.event.id, info.event.start, info.event.end);
+    applyMove(found, info.event.start, info.event.end);
   };
 
   const onEventResize = (info: EventChangeArg) => {
-    if (!info.event.start) {
+    const found = findEvent(info.event.id);
+    if (!found || !info.event.start) {
       info.revert();
       return;
     }
-    applyMove(info.event.id, info.event.start, info.event.end);
+    applyMove(found, info.event.start, info.event.end);
+  };
+
+  const moveEventFromView = (event: CalendarEvent, target: Date) => {
+    if (!canEditEvent(event)) {
+      return;
+    }
+    const start = new Date(event.start_at);
+    const shifted = new Date(
+      target.getFullYear(),
+      target.getMonth(),
+      target.getDate(),
+      start.getHours(),
+      start.getMinutes(),
+      start.getSeconds(),
+      start.getMilliseconds(),
+    );
+    const duration = new Date(event.end_at).getTime() - start.getTime();
+    applyMove(event, shifted, new Date(shifted.getTime() + duration));
   };
 
   const resetFilters = () => {
@@ -259,7 +324,7 @@ export function CalendarPage() {
 
   const goToMonth = (month: Date) => {
     setMiniMonth(month.getMonth());
-    setQuarterMode(false);
+    switchMode('normal');
     const api = calendarRef.current?.getApi();
     api?.changeView('dayGridMonth');
     api?.gotoDate(month);
@@ -280,11 +345,19 @@ export function CalendarPage() {
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="secondary"
-              onClick={() => setQuarterMode((value) => !value)}
+              onClick={() => switchMode(mode === 'quarter' ? 'normal' : 'quarter')}
               disabled={sources.length === 0}
-              aria-pressed={quarterMode}
+              aria-pressed={mode === 'quarter'}
             >
-              {quarterMode ? 'Обычный вид' : 'Квартал'}
+              {mode === 'quarter' ? 'Обычный вид' : 'Квартал'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => switchMode(mode === 'year' ? 'normal' : 'year')}
+              disabled={sources.length === 0}
+              aria-pressed={mode === 'year'}
+            >
+              {mode === 'year' ? 'Обычный вид' : 'Год'}
             </Button>
             <Button
               onClick={() => openCreate()}
@@ -304,7 +377,7 @@ export function CalendarPage() {
 
       <div className="flex flex-col gap-6 xl:flex-row">
         {sources.length > 0 && (
-          <aside className="hidden w-64 shrink-0 xl:block">
+          <aside className="hidden w-[280px] shrink-0 xl:block">
             <div className="sticky top-6">
               <YearMiniMap
                 year={miniYear}
@@ -414,7 +487,7 @@ export function CalendarPage() {
         </div>
       )}
 
-      <div className={quarterMode ? 'hidden' : undefined}>
+      <div className={mode !== 'normal' ? 'hidden' : undefined}>
         <div className="rounded-lg bg-bg-surface p-2 shadow-card sm:p-4">
           {sources.length === 0 ? (
             <p className="py-16 text-center text-body-sm text-text-secondary">
@@ -464,17 +537,16 @@ export function CalendarPage() {
         </div>
       </div>
 
-      {sources.length > 0 && quarterMode && (
+      {sources.length > 0 && mode !== 'normal' && (
         <QuarterView
-          events={events}
+          key={mode}
+          monthsCount={mode === 'year' ? YEAR_MONTHS : QUARTER_MONTHS}
+          events={windowEvents}
           sources={sources}
-          loading={isLoading}
-          onOpenMonth={(month) => {
-            setQuarterMode(false);
-            const api = calendarRef.current?.getApi();
-            api?.changeView('dayGridMonth');
-            api?.gotoDate(month);
-          }}
+          loading={isLoading || windowLoading}
+          onRangeChange={applyWindowRange}
+          onMoveEvent={moveEventFromView}
+          onOpenMonth={goToMonth}
           onAddEvent={(date) => openCreate(date)}
           onOpenEvent={(event) => openEdit(event.id)}
         />

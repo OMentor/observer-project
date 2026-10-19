@@ -67,6 +67,42 @@ describe('QuarterView', () => {
     expect(weekends).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('renders a twelve-month year window and steps by year', async () => {
+    const onRangeChange = vi.fn();
+    render(
+      <QuarterView
+        events={[makeEvent('a', new Date(2026, 9, 15, 9))]}
+        sources={sources}
+        initialDate={new Date(2026, 9, 15)}
+        monthsCount={12}
+        onRangeChange={onRangeChange}
+      />,
+    );
+    expect(
+      screen.getAllByRole('button', { name: /^[А-Яа-я]+ 2026$/ }),
+    ).toHaveLength(12);
+    const combo = screen.getByRole('combobox', { name: 'Переход к году' });
+    expect(combo).toHaveValue('2026');
+
+    expect(onRangeChange).toHaveBeenCalledWith({
+      start: new Date(2026, 0, 1),
+      end: new Date(2027, 0, 1),
+    });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Следующий год' }),
+    );
+    expect(combo).toHaveValue('2027');
+    expect(
+      screen.getAllByRole('button', { name: /^[А-Яа-я]+ 2027$/ }),
+    ).toHaveLength(12);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Предыдущий год' }),
+    );
+    expect(combo).toHaveValue('2026');
+  });
+
   it('navigates to the month view', async () => {
     const onOpenMonth = vi.fn();
     render(
