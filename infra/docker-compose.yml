@@ -65,7 +65,22 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # Локальный CalDAV-сервер для разработки/интеграционных тестов синхронизации
+  # (Этап 6). Заменяет реальные аккаунты Яндекс/Mail.ru, пока их нет.
+  # Web UI: http://localhost:5232
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: calendar-radicale
+    restart: unless-stopped
+    ports:
+      - "5232:5232"
+    environment:
+      - TZ=Europe/Moscow
+    volumes:
+      - radicale_data:/data
+
 volumes:
   pgdata:
   redisdata:
   miniodata:
+  radicale_data:
