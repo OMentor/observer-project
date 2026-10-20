@@ -19,9 +19,13 @@ export interface DavClient {
     filename: string,
     iCal: string,
   ): Promise<Response>;
+  /**
+   * PUT объекта по URL. `etag === null` — безусловная перезапись (без
+   * `If-Match`); иначе оптимистичная блокировка через `If-Match: <etag>`.
+   */
   updateCalendarObject(
     objectUrl: string,
-    etag: string,
+    etag: string | null,
     iCal: string,
   ): Promise<Response>;
   deleteCalendarObject(objectUrl: string): Promise<Response>;
@@ -74,7 +78,11 @@ const defaultFactory: DavClientFactory = async ({ url, username, password }) => 
       }),
     updateCalendarObject: (objectUrl, etag, iCal) =>
       client.updateCalendarObject({
-        calendarObject: { url: objectUrl, data: iCal, etag },
+        calendarObject: {
+          url: objectUrl,
+          data: iCal,
+          ...(etag === null ? {} : { etag }),
+        },
       }),
     deleteCalendarObject: (objectUrl) =>
       client.deleteCalendarObject({ calendarObject: { url: objectUrl } }),
@@ -83,7 +91,8 @@ const defaultFactory: DavClientFactory = async ({ url, username, password }) => 
 
 /**
  * CalDAV-провайдер (Яндекс, Mail.ru, локальный Radicale).
- * `listCalendars`, `pull` (Фаза 2), `push`/`delete` (Фаза 3).
+ * `listCalendars`, `pull` (Фаза 2), `push`/`delete` (Фаза 3),
+ * `forcePush` (Фаза 4).
  */
 export class CaldavProvider implements SyncProvider {
   readonly provider: ExternalProvider;
@@ -135,6 +144,31 @@ export class CaldavProvider implements SyncProvider {
       event.ical,
     );
     this.assertWritable(response, event.uid, 'обновить');
+    const etag = await this.readEtag(client, calendarId, event.uid, response);
+    return { uid: event.uid, etag, ical: event.ical };
+  }
+
+  /**
+   * Безусловная запись версии пользователя при разрешении конфликта.
+   *
+   * В отличие от `push`, не использует оптимистичную блокировку: пользователь
+   * уже принял решение «наша версия» и намеренно перезаписывает внешний объект.
+   * `If-Match: *` здесь не подходит (Radicale и др. трактуют `*` как обычный
+   * ETag и возвращают 412), поэтому перезапись идёт `PUT` без `If-Match`,
+   * а при отсутствии объекта он создаётся заново.
+   */
+  async forcePush(calendarId: string, event: RemoteEvent): Promise<RemoteEvent> {
+    const client = await this.factory(this.credentials);
+    const url = await this.findObjectUrl(client, calendarId, event.uid);
+
+    const response = url
+      ? await client.updateCalendarObject(url, null, event.ical)
+      : await client.createCalendarObject(
+          calendarId,
+          `${event.uid}.ics`,
+          event.ical,
+        );
+    this.assertWritable(response, event.uid, 'перезаписать');
     const etag = await this.readEtag(client, calendarId, event.uid, response);
     return { uid: event.uid, etag, ical: event.ical };
   }

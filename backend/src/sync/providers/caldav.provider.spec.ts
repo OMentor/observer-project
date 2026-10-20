@@ -264,4 +264,85 @@ describe('CaldavProvider', () => {
 
     expect(deleteCalendarObject).not.toHaveBeenCalled();
   });
+
+  it('forcePush перезаписывает существующий объект без If-Match (etag = null)', async () => {
+    const fetchCalendarObjects = jest
+      .fn()
+      .mockResolvedValue([
+        { url: `${CALENDAR_URL}a.ics`, etag: '"old"', data: ics('a', 'A') },
+      ]);
+    const updateCalendarObject = jest
+      .fn()
+      .mockResolvedValue(resp(204, '"forced"'));
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(davClient({ fetchCalendarObjects, updateCalendarObject })),
+    );
+
+    const result = await provider.forcePush(CALENDAR_URL, {
+      uid: 'a',
+      etag: '"old"',
+      ical: ics('a', 'A2'),
+    });
+
+    expect(updateCalendarObject).toHaveBeenCalledWith(
+      `${CALENDAR_URL}a.ics`,
+      null,
+      ics('a', 'A2'),
+    );
+    expect(result.etag).toBe('"forced"');
+  });
+
+  it('forcePush создаёт объект, если он отсутствует во внешнем календаре', async () => {
+    const createCalendarObject = jest
+      .fn()
+      .mockResolvedValue(resp(201, '"made"'));
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({
+          fetchCalendarObjects: jest.fn().mockResolvedValue([]),
+          createCalendarObject,
+        }),
+      ),
+    );
+
+    const result = await provider.forcePush(CALENDAR_URL, {
+      uid: 'a',
+      etag: '"old"',
+      ical: ics('a', 'A'),
+    });
+
+    expect(createCalendarObject).toHaveBeenCalledWith(
+      CALENDAR_URL,
+      'a.ics',
+      ics('a', 'A'),
+    );
+    expect(result.etag).toBe('"made"');
+  });
+
+  it('forcePush при 412 бросает SyncConflictError', async () => {
+    const provider = new CaldavProvider(
+      credentials,
+      'yandex',
+      factoryReturning(
+        davClient({
+          fetchCalendarObjects: jest.fn().mockResolvedValue([
+            { url: `${CALENDAR_URL}a.ics`, etag: '"old"', data: ics('a', 'A') },
+          ]),
+          updateCalendarObject: jest.fn().mockResolvedValue(resp(412)),
+        }),
+      ),
+    );
+
+    await expect(
+      provider.forcePush(CALENDAR_URL, {
+        uid: 'a',
+        etag: '"old"',
+        ical: ics('a', 'A2'),
+      }),
+    ).rejects.toBeInstanceOf(SyncConflictError);
+  });
 });

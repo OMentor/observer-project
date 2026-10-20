@@ -9,6 +9,7 @@ export const RealtimeEvents = {
   memberUpdated: 'member.updated',
   memberKicked: 'member.kicked',
   tokenActivated: 'token.activated',
+  syncConflict: 'sync.conflict',
 } as const;
 
 export type EventAction =

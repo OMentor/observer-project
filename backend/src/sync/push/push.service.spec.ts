@@ -1,4 +1,5 @@
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import { ProviderFactory } from '../providers/provider.factory';
 import { SyncConflictError } from '../sync-errors';
 import { PushService } from './push.service';
@@ -44,6 +45,8 @@ interface Harness {
   prisma: any;
   push: jest.Mock;
   remove: jest.Mock;
+  pull: jest.Mock;
+  realtime: { conflictCreated: jest.Mock };
 }
 
 function build(params: {
@@ -51,9 +54,11 @@ function build(params: {
   map?: unknown;
   pushError?: Error;
   openConflict?: unknown;
+  remoteEvents?: unknown[];
 }): Harness {
   const push = jest.fn();
   const remove = jest.fn();
+  const pull = jest.fn().mockResolvedValue({ events: params.remoteEvents ?? [] });
   if (params.pushError) {
     push.mockRejectedValue(params.pushError);
   } else {
@@ -87,13 +92,15 @@ function build(params: {
     },
   };
   const factory = {
-    create: jest.fn().mockReturnValue({ push, delete: remove }),
+    create: jest.fn().mockReturnValue({ push, delete: remove, pull }),
   };
+  const realtime = { conflictCreated: jest.fn().mockResolvedValue(undefined) };
   const service = new PushService(
     prisma as unknown as PrismaService,
     factory as unknown as ProviderFactory,
+    realtime as unknown as RealtimeService,
   );
-  return { service, prisma, push, remove };
+  return { service, prisma, push, remove, pull, realtime };
 }
 
 describe('PushService', () => {
@@ -225,6 +232,56 @@ describe('PushService', () => {
     await service.pushEvent('11111111-1111-1111-1111-111111111111');
 
     expect(prisma.syncConflict.create).not.toHaveBeenCalled();
+  });
+
+  it('при конфликте сохраняет снимок внешней версии из pull', async () => {
+    const remoteIcs = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Pletenie//Test//EN',
+      'BEGIN:VEVENT',
+      'UID:remote',
+      'DTSTAMP:20261015T090000Z',
+      'DTSTART:20261201T120000Z',
+      'DTEND:20261201T130000Z',
+      'SUMMARY:Внешняя версия',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    const { service, prisma } = build({
+      event: baseEvent({ external_id: 'remote', external_etag: '"old"' }),
+      pushError: new SyncConflictError('412'),
+      remoteEvents: [{ uid: 'remote', etag: '"new"', ical: remoteIcs }],
+    });
+
+    await service.pushEvent('11111111-1111-1111-1111-111111111111');
+
+    expect(prisma.syncConflict.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          external_etag: '"new"',
+          external_data: expect.objectContaining({
+            title: 'Внешняя версия',
+            start_at: '2026-12-01T12:00:00.000Z',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('при конфликте уведомляет владельца подключения через realtime', async () => {
+    const { service, realtime } = build({
+      event: baseEvent({ external_id: 'remote', external_etag: '"old"' }),
+      pushError: new SyncConflictError('412'),
+    });
+
+    await service.pushEvent('11111111-1111-1111-1111-111111111111');
+
+    expect(realtime.conflictCreated).toHaveBeenCalledWith('user1', {
+      conflict_id: 'conf1',
+      event_id: '11111111-1111-1111-1111-111111111111',
+      title: 'Созвон',
+    });
   });
 
   it('транзиентную ошибку пробрасывает (событие остаётся pending для retry)', async () => {

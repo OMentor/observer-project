@@ -39,6 +39,9 @@ export interface PullResult {
  * - `push` — Фаза 3: `event.etag === null` → создание (If-None-Match: *),
  *   иначе обновление с оптимистичной блокировкой (If-Match). Бросает
  *   `SyncConflictError` при 412/404. Возвращает актуальный ETag.
+ * - `forcePush` — Фаза 4: безусловная перезапись версии пользователя
+ *   (без `If-Match`); если объекта нет — создаёт заново. Используется при
+ *   разрешении конфликта «наша версия»/«объединение».
  * - `delete` — Фаза 3: удаляет объект по UID; отсутствие — не ошибка.
  */
 export interface SyncProvider {
@@ -46,5 +49,6 @@ export interface SyncProvider {
   listCalendars(): Promise<ExternalCalendar[]>;
   pull(calendarId: string): Promise<PullResult>;
   push(calendarId: string, event: RemoteEvent): Promise<RemoteEvent>;
+  forcePush(calendarId: string, event: RemoteEvent): Promise<RemoteEvent>;
   delete(calendarId: string, externalId: string): Promise<void>;
 }

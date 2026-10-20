@@ -1,6 +1,6 @@
 # Синхронизация с внешними календарями
 
-Версия: 1.1 (19.10.2026).
+Версия: 1.2 (19.10.2026).
 Область: Этап 6 MVP. CalDAV-провайдеры (Яндекс, Mail.ru). Apple iCloud отложен.
 Связанные документы: `Проект.txt` §6.8, §12; `docs/api.md`; `docs/legal-sync-draft.md`.
 
@@ -207,6 +207,38 @@ auto-resolve по «последнее побеждает». Если в пре�
   `/sync/conflicts`.
 - **Mobile**: бейдж на иконке календаря, экран «Конфликты синхронизации» в
   профиле.
+
+#### 4.4.1. API разрешения (Фаза 4)
+
+| Метод | Endpoint | Назначение |
+|-------|----------|------------|
+| `GET` | `/sync/conflicts` | Неразрешённые конфликты пользователя (фильтры `space_id`, `event_id`, `connection_id`; пагинация `limit`/`offset`) |
+| `GET` | `/sync/conflicts/:id` | Один конфликт с полными `local_data`/`external_data` |
+| `POST` | `/sync/conflicts/:id/resolve` | Тело `{ resolution: 'local' \| 'external' \| 'merged', merged_data? }` |
+
+Снимки полей — snake_case (`title`, `description`, `start_at`, `end_at`,
+`all_day`, `timezone`, `location`, `rrule`), даты — ISO-строки.
+
+| Ветка | Поля события | ETag | Запись наружу |
+|-------|--------------|------|----------------|
+| `local` | текущие локальные | новый ETag ответа | `forcePush` (безусловный PUT) |
+| `external` | из `external_data` | `= conflict.external_etag` | нет |
+| `merged` | `{ ...local_data, ...merged_data }` | новый ETag ответа | `forcePush` |
+
+- `merged_data` — частичное объединение: незаданные поля берутся из локальной
+  версии; `description`/`location` могут быть явно `null` (очистка).
+- `external_data` заполняется **в момент конфликта** снимком внешней версии
+  (best-effort pull). Если снимка нет — `resolve('external')` → `500`.
+- Транзакция: `Event` и `SyncConflict` фиксируются вместе. `forcePush`
+  выполняется **вне** транзакции: при ошибке (сеть/провайдер) → `503`, конфликт
+  остаётся неразрешённым, событие не меняется.
+- `forcePush` использует **безусловный PUT** (без `If-Match`): `If-Match: *`
+  не поддержан (Radicale трактует `*` как обычный ETag → `412`); при
+  отсутствии объекта он создаётся заново (`If-None-Match: *`).
+- Новый конфликт рассылается как событие `sync.conflict` через Redis-шину
+  (воркер → API → комната `user:<id>`), т.к. push выполняется в отдельном
+  процессе-воркере без WebSocket-сервера.
+
 
 ### 4.5. Приоритет источников
 
@@ -472,17 +504,22 @@ credentials = пользователи должны переподключить
 ### 11.1. Unit
 
 - `crypto.spec.ts` — шифрование/расшифровка (Фаза 1).
-- `caldav.provider.spec.ts` — `listCalendars` и `pull` с мок-`DavClient` (Фаза 2).
+- `caldav.provider.spec.ts` — `listCalendars`, `pull`, `push`/`delete`,
+  `forcePush` с мок-`DavClient` (Фазы 2–4).
 - `ical-parser.spec.ts` — парсинг VEVENT, all-day (`VALUE=DATE`), нормализация
   `Etc/UTC` → `UTC` (Фаза 2).
 - `pull.service.spec.ts` — create/update/skip-по-ETag/delete, статусы (Фаза 2).
 - `ical-serializer.spec.ts` — VEVENT, all-day `VALUE=DATE`, UID, описание/локация
   (Фаза 3).
-- `push.service.spec.ts` — create/update/delete, конфликт (без дублей), retry
-  (Фаза 3).
+- `push.service.spec.ts` — create/update/delete, конфликт (без дублей), снимок
+  внешней версии, уведомление, retry (Фазы 3–4).
 - `links.service.spec.ts`, `sync.controller.spec.ts` — link/unlink/force (Фаза 2).
 - `provider.factory.spec.ts`, `connections.service.spec.ts` — Фаза 1.
-- `conflict.resolver.spec.ts` — все 9 строк таблицы §4.3 (Фаза 3).
+- `conflict-resolver.service.spec.ts` — ветки `local`/`external`/`merged`,
+  403/409/500/503 (Фаза 4).
+- `conflicts.controller.spec.ts` — делегирование `list`/`get`/`resolve` (Фаза 4).
+- `realtime.service.spec.ts` — `conflictCreated` → публикация в Redis-шину
+  (Фаза 4).
 - `rrule.spec.ts` — развёртывание простых правил, read-only сложных (Фаза 6).
 
 ### 11.2. Integration
@@ -526,6 +563,10 @@ Playwright: подключение → связывание → событие �
 | 1 | Подключения CalDAV + `listCalendars` | ✅ закрыта (Radicale + Яндекс) |
 | 2 | Pull: iCal-парсер, ETag-diff, link, воркер | ✅ реализовано |
 | 3 | Push: сериализация iCal, create/update/delete, конфликты | ✅ реализовано |
+| 4.1 | Backend: API конфликтов + `ConflictResolverService` + Redis-шина | ✅ реализовано |
+| 4.2 | Web UI: список, модалка diff, индикатор | ⏳ запланировано |
+| 4.3 | Mobile UI: список, bottom sheet, бейдж | ⏳ запланировано |
+| 4.4 | E2E полного цикла «конфликт → разрешение» | ⏳ запланировано |
 
 **Фаза 2 — детали:**
 - Парсер: `node-ical`, нормализация all-day → UTC-полночь, `Etc/UTC` → `UTC`.
@@ -558,6 +599,24 @@ Playwright: подключение → связывание → событие �
   календаре; смоделированный конфликт (правка снаружи + локальная правка) →
   `SyncConflict`, внешний объект не перезаписан.
 
+**Фаза 4.1 — детали:**
+- DTO (Zod, snake_case): `list-conflicts.query.ts`, `resolve-conflict.dto.ts`
+  (`discriminatedUnion` по `resolution`).
+- `ConflictResolverService` — `list`/`get`/`resolve`; ветки `local`/`external`/
+  `merged` (см. §4.4.1); запись `Event`+`SyncConflict` одной Prisma-транзакцией.
+- `CalDavProvider.forcePush(calendarId, uid)` — **безусловный PUT** (без
+  `If-Match`); при отсутствии объекта — создание (`If-None-Match: *`).
+  `DavClient.updateCalendarObject` принимает `etag: string | null`.
+- `PushService.recordConflict` теперь сохраняет снимок внешней версии
+  (`external_data` + актуальный `external_etag`) через `provider.pull`, а не
+  пустой объект; конфликт уведомляется событием `sync.conflict`.
+- `RealtimeBridge` (`realtime-bridge.service.ts`) — Redis pub/sub: воркер
+  публикует `{ userId, event, payload }` в канал `pletenie:realtime`, API
+  подписан и рассылает в комнату `user:<id>`.
+- Эндпоинты: `ConflictsController` (`GET /sync/conflicts`,
+  `GET /sync/conflicts/:id`, `POST /sync/conflicts/:id/resolve`).
+- Проверка: `tsc` 0, `eslint` 0, `jest` 147/147, `nest build` 0.
+
 **Отклонения/известные ограничения:**
 - Воркер — чистый `bullmq` (без `@nestjs/bullmq`).
 - Radicale — только для dev/personal (не публичный провайдер).
@@ -567,6 +626,9 @@ Playwright: подключение → связывание → событие �
   для MVP приемлемо; при больших календарях вынести хранимый URL в схему.
 - `DELETE /sources/:id/link` пока не переводит `synced`-события в `local`
   (§5.3) — вынести в Фазу 4 (UI) / отдельную задачу.
+- `external_data` снимок делается best-effort в момент конфликта; если
+  провайдер недоступен, снимок пуст и ветка `resolve('external')` недоступна
+  (500) — пользователь может разрешить вручную (`local`/`merged`).
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.

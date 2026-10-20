@@ -14,6 +14,9 @@ export function createSyncWorker(
   handler: SyncJobHandler,
 ): Worker<SyncJobData> {
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+  connection.on('error', (error) => {
+    console.error('[sync] Redis error:', error.message);
+  });
 
   const worker = new Worker<SyncJobData>(
     SYNC_QUEUE,

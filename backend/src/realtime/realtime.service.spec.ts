@@ -11,6 +11,7 @@ describe('RealtimeService', () => {
     emitToSpace: jest.Mock;
     removeUserFromSpace: jest.Mock;
   };
+  let bridge: { publish: jest.Mock };
   let service: RealtimeService;
 
   const event = {
@@ -37,7 +38,12 @@ describe('RealtimeService', () => {
       emitToSpace: jest.fn(),
       removeUserFromSpace: jest.fn().mockResolvedValue(undefined),
     };
-    service = new RealtimeService(prisma as never, gateway as never);
+    bridge = { publish: jest.fn().mockResolvedValue(undefined) };
+    service = new RealtimeService(
+      prisma as never,
+      gateway as never,
+      bridge as never,
+    );
   });
 
   it('eventChanged рассылает маскированный payload по пресетам', async () => {
@@ -105,5 +111,19 @@ describe('RealtimeService', () => {
       RealtimeEvents.tokenActivated,
       { space_id: 'sp1', user_id: 'u2', preset: 'OWN', actor_id: 'u2' },
     );
+  });
+
+  it('conflictCreated публикует событие в Redis-шину', async () => {
+    await service.conflictCreated('u1', {
+      conflict_id: 'conf1',
+      event_id: 'ev1',
+      title: 'Созвон',
+    });
+
+    expect(bridge.publish).toHaveBeenCalledWith('u1', RealtimeEvents.syncConflict, {
+      conflict_id: 'conf1',
+      event_id: 'ev1',
+      title: 'Созвон',
+    });
   });
 });
