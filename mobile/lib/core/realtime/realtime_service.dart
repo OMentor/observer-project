@@ -24,6 +24,7 @@ const List<String> _broadcastEvents = [
   'member.updated',
   'member.kicked',
   'token.activated',
+  'sync.conflict',
 ];
 
 class RealtimeService {

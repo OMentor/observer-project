@@ -10,9 +10,10 @@ const String apiBaseUrl = String.fromEnvironment(
 );
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.isNetwork = false});
+  ApiException(this.message, {this.isNetwork = false, this.statusCode});
   final String message;
   final bool isNetwork;
+  final int? statusCode;
 
   @override
   String toString() => message;
@@ -104,11 +105,13 @@ class ApiClient implements CalendarDataSource {
       final message = data['message'];
       throw ApiException(
         message is List ? message.join(', ') : message.toString(),
+        statusCode: response?.statusCode,
       );
     }
     throw ApiException(
       'Ошибка сети. Проверьте подключение.',
       isNetwork: response == null,
+      statusCode: response?.statusCode,
     );
   }
 
@@ -232,6 +235,44 @@ class ApiClient implements CalendarDataSource {
 
   Future<void> deleteEvent(String id) =>
       _guard(() => _dio.delete<void>('/events/$id'));
+
+  Future<ConflictList> fetchConflicts({
+    String? spaceId,
+    String? eventId,
+    int limit = 50,
+    int offset = 0,
+  }) =>
+      _guard(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/sync/conflicts',
+          queryParameters: {
+            'space_id': ?spaceId,
+            'event_id': ?eventId,
+            'limit': limit,
+            'offset': offset,
+          },
+        );
+        return ConflictList.fromJson(res.data!);
+      });
+
+  Future<ConflictItem> fetchConflict(String id) => _guard(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/sync/conflicts/$id',
+        );
+        return ConflictItem.fromJson(res.data!);
+      });
+
+  Future<CalendarEvent> resolveConflict(
+    String id,
+    Map<String, dynamic> body,
+  ) =>
+      _guard(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/sync/conflicts/$id/resolve',
+          data: body,
+        );
+        return CalendarEvent.fromJson(res.data!);
+      });
 
   Future<List<EventHistoryEntry>> fetchEventHistory(String eventId) =>
       _guard(() async {

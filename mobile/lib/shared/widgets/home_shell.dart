@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class HomeShell extends StatelessWidget {
+import '../../app.dart';
+
+class HomeShell extends ConsumerWidget {
   const HomeShell({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.toString();
     final index = _indexFor(location);
+    final conflicts =
+        ref.watch(conflictsProvider).asData?.value.length ?? 0;
 
     return Scaffold(
       body: child,
@@ -20,16 +25,20 @@ class HomeShell extends StatelessWidget {
           2 => '/profile',
           _ => '/',
         }),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.calendar_today),
+            icon: Badge(
+              isLabelVisible: conflicts > 0,
+              label: Text('$conflicts'),
+              child: const Icon(Icons.calendar_today),
+            ),
             label: 'Календарь',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.grid_view),
             label: 'Пространства',
           ),
-          NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
+          const NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
         ],
       ),
     );

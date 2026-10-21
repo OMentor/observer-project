@@ -35,6 +35,26 @@ class AppEventTile extends StatelessWidget {
     final busy = event.busy;
     final barColor = busy ? appBusyColor : (color ?? c.accent);
 
+    final trailing = <Widget>[
+      if (event.hasConflict)
+        Semantics(
+          label: 'Конфликт синхронизации',
+          child: Container(
+            key: ValueKey('conflict-dot-${event.id}'),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: c.danger,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      if (event.location != null) ...[
+        if (event.hasConflict) const SizedBox(width: AppSpacing.x1),
+        Icon(Icons.place_outlined, size: 18, color: c.textSecondary),
+      ],
+    ];
+
     return ListTile(
       enabled: !busy && onTap != null,
       leading: Container(
@@ -55,9 +75,9 @@ class AppEventTile extends StatelessWidget {
             : null,
       ),
       subtitle: Text(eventTimeLabel(event)),
-      trailing: event.location == null
+      trailing: trailing.isEmpty
           ? null
-          : Icon(Icons.place_outlined, size: 18, color: c.textSecondary),
+          : Row(mainAxisSize: MainAxisSize.min, children: trailing),
       onTap: busy ? null : onTap,
     );
   }

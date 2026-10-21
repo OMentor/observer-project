@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
 import '../../core/models.dart';
@@ -78,6 +79,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final c = AppColors.of(context);
     final user = ref.watch(authControllerProvider).asData?.value;
     final themeMode = ref.watch(themeModeProvider);
+    final conflicts = ref.watch(conflictsProvider).asData?.value.length ?? 0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Профиль')),
@@ -164,6 +166,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     tone: AppBadgeTone.muted,
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.x5),
+          _SectionTitle(title: 'Синхронизация', color: c.textPrimary),
+          const SizedBox(height: AppSpacing.x2),
+          AppListCard(
+            children: [
+              AppListRow(
+                leading: Icon(Icons.sync_problem, color: c.textSecondary),
+                title: 'Конфликты синхронизации',
+                subtitle: conflicts == 0
+                    ? 'Нет конфликтов'
+                    : 'Ожидают решения: $conflicts',
+                trailing: conflicts > 0
+                    ? AppBadge(
+                        label: '$conflicts',
+                        tone: AppBadgeTone.danger,
+                      )
+                    : Icon(Icons.chevron_right, color: c.textMuted),
+                onTap: () => context.push('/sync/conflicts'),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.x5),
