@@ -564,9 +564,9 @@ Playwright: подключение → связывание → событие �
 | 2 | Pull: iCal-парсер, ETag-diff, link, воркер | ✅ реализовано |
 | 3 | Push: сериализация iCal, create/update/delete, конфликты | ✅ реализовано |
 | 4.1 | Backend: API конфликтов + `ConflictResolverService` + Redis-шина | ✅ реализовано |
-| 4.2 | Web UI: список, модалка diff, индикатор | ⏳ запланировано |
-| 4.3 | Mobile UI: список, bottom sheet, бейдж | ⏳ запланировано |
-| 4.4 | E2E полного цикла «конфликт → разрешение» | ⏳ запланировано |
+| 4.2 | Web UI: список, модалка diff, индикатор | ✅ реализовано |
+| 4.3 | Mobile UI: список, экран diff/merge, бейдж | ✅ реализовано |
+| 4.4 | E2E полного цикла «конфликт → разрешение» | ✅ закрыта (Mobile, emulator) |
 
 **Фаза 2 — детали:**
 - Парсер: `node-ical`, нормализация all-day → UTC-полночь, `Etc/UTC` → `UTC`.
@@ -629,6 +629,43 @@ Playwright: подключение → связывание → событие �
 - `external_data` снимок делается best-effort в момент конфликта; если
   провайдер недоступен, снимок пуст и ветка `resolve('external')` недоступна
   (500) — пользователь может разрешить вручную (`local`/`merged`).
+
+**Фаза 4.2 — детали:**
+- Web: `/sync/conflicts`, карточки с diff, модалка «наша/внешняя/объединить»,
+  индикатор в шапке, красные точки в календаре и панели дня; realtime
+  `sync.conflict` → toast + инвалидация.
+- Проверка: `tsc` 0, `oxlint` 0, `vitest` 86/86, `vite build` 0,
+  Playwright 3/3 (`web/e2e/sync-conflicts.spec.ts`, Radicale).
+
+**Фаза 4.3 — детали:**
+- Mobile: `features/sync/` — список конфликтов, экран diff/merge, карточка;
+  бейдж на вкладке «Календарь», строка в профиле, красная точка в
+  `AppEventTile`; realtime `sync.conflict` инвалидирует список.
+- Конфликты доступны только онлайн; оффлайн — состояние «Нет соединения».
+- Проверка: `flutter analyze` 0, `flutter test` 107/107 (15 новых тестов,
+  2 golden: `conflict_card_dark/light.png`).
+
+**Фаза 4.4 — детали:**
+- `backend/scripts/seed-e2e.ts` — пользователь, пространство, источник,
+  dummy-подключение + маппинг, событие и `SyncConflict` с полными снимками;
+  печатает JSON с `email`/`password`/`conflictId` для прогона.
+- `backend/scripts/trigger-conflict.ts --email=…` — создаёт новый конфликт и
+  публикует `sync.conflict` в Redis-канал `pletenie:realtime`.
+- `mobile/integration_test/conflict_external_test.dart` — вход, бейдж,
+  профиль → «Конфликты синхронизации», список, экран diff, разрешение
+  «Внешняя версия», ожидание пустого состояния. Запуск:
+  `flutter test integration_test/conflict_external_test.dart -d emulator-5554
+  --dart-define=API_URL=http://10.0.2.2:3000 --dart-define=E2E_EMAIL=…
+  --dart-define=E2E_PASS=password123`.
+- Тест поднимает приложение без `NotificationService.init()` (иначе системный
+  диалог разрешений блокирует прогон), через `ProviderScope` +
+  `sessionManagerProvider.overrideWithValue`.
+- Прогон на `emulator-5554`: **1/1 PASS**. Попутно исправлен `AppToastHost`:
+  `tooltip` у кнопки закрытия требует `Overlay` (его нет над `MaterialApp`),
+  из-за чего debug-сборка падала при toast «Соединение восстановлено».
+- Realtime-триггер с хоста внутри integration-теста недоступен: `Process.run`
+  выполняется на устройстве; сценарий покрыт seed/trigger-скриптами и
+  widget-тестами.
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.

@@ -531,3 +531,23 @@ Flutter целиком: токены, тема Material, шрифты Onest/Lora
   CommandPalette/SpacePicker не нужны — эквиваленты в шапке экранов.
 - Golden обновляются вручную: `flutter test --update-goldens`.
 - Figma недоступна; iOS на Windows не проверяется.
+
+### Этап 6 — синхронизация (Фазы 4.1–4.4) ✅
+
+- **4.1 Backend**: `ConflictResolverService`, `GET/POST /sync/conflicts`,
+  снимок внешней версии в `SyncConflict`, `sync.conflict` через Redis-шину;
+  проверено на Radicale, jest 147/147.
+- **4.2 Web**: страница `/sync/conflicts`, diff-модалка, индикатор, realtime;
+  tsc/oxlint 0, vitest 86/86, Playwright 3/3. Коммит `a9be0d9`.
+- **4.3 Mobile**: список и экран разрешения конфликтов, объединение полей,
+  бейдж на вкладке календаря, строка в профиле, красная точка в событии;
+  realtime-инвалидация. Конфликты — только онлайн.
+- **4.4 E2E Mobile**: `integration_test/conflict_external_test.dart` —
+  вход, бейдж, профиль, список, экран diff, разрешение «Внешняя версия»,
+  пустое состояние. Сидинг — `backend/scripts/seed-e2e.ts`, realtime-триггер —
+  `backend/scripts/trigger-conflict.ts`. Прогон на `emulator-5554` — **1/1
+  PASS**. По пути исправлен `AppToastHost`: у кнопки закрытия убран `tooltip`
+  (падал без `Overlay` и ломал layout при старте, когда приходил toast о
+  восстановлении соединения), добавлен `Semantics`.
+- Проверка Mobile: `flutter analyze` — 0; `flutter test` — **107/107**
+  (15 новых тестов, 2 golden `conflict_card_dark/light.png`).
