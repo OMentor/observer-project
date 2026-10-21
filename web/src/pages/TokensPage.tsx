@@ -22,6 +22,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { CopyButton } from '@/components/CopyButton';
 import { SpacePicker } from '@/components/SpacePicker';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useToastStore } from '@/store/toasts';
 import {
   Dialog,
   DialogContent,
@@ -86,6 +88,7 @@ export function TokensPage() {
   const [count, setCount] = useState(1);
   const [issued, setIssued] = useState<Token[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Token | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<'all' | TokenStatusKey>(
     'active',
@@ -150,8 +153,20 @@ export function TokensPage() {
 
   const revokeMutation = useMutation({
     mutationFn: revokeToken,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['tokens', selectedSpaceId] }),
+    onSuccess: () => {
+      setRevokeTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['tokens', selectedSpaceId] });
+      useToastStore.getState().push({
+        title: 'Токен отозван',
+        tone: 'success',
+      });
+    },
+    onError: () => {
+      useToastStore.getState().push({
+        title: 'Не удалось отозвать токен',
+        tone: 'danger',
+      });
+    },
   });
 
   if (spacesLoading) {
@@ -386,7 +401,7 @@ export function TokensPage() {
                             label="Отозвать"
                             variant="danger"
                             className="ml-auto"
-                            onClick={() => revokeMutation.mutate(token.id)}
+                            onClick={() => setRevokeTarget(token)}
                           />
                         )}
                       </td>
@@ -480,6 +495,25 @@ export function TokensPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(revokeTarget)}
+        onOpenChange={(next) => {
+          if (!next && !revokeMutation.isPending) {
+            setRevokeTarget(null);
+          }
+        }}
+        title="Отозвать токен?"
+        description="Токен нельзя будет использовать для вступления в пространство."
+        confirmLabel="Отозвать"
+        tone="danger"
+        loading={revokeMutation.isPending}
+        onConfirm={() => {
+          if (revokeTarget) {
+            revokeMutation.mutate(revokeTarget.id);
+          }
+        }}
+      />
     </section>
   );
 }

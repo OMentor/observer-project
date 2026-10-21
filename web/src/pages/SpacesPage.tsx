@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,10 @@ export function SpacesPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
     isOnboardingDismissed(),
   );
@@ -64,7 +69,20 @@ export function SpacesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteSpace,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['spaces'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      setDeleteTarget(null);
+      useToastStore.getState().push({
+        title: 'Пространство удалено',
+        tone: 'success',
+      });
+    },
+    onError: () => {
+      useToastStore.getState().push({
+        title: 'Не удалось удалить пространство',
+        tone: 'danger',
+      });
+    },
   });
 
   const demoMutation = useMutation({
@@ -179,7 +197,7 @@ export function SpacesPage() {
               {space.owner_id === currentUserId && (
                 <button
                   type="button"
-                  onClick={() => deleteMutation.mutate(space.id)}
+                  onClick={() => setDeleteTarget(space)}
                   className="mt-4 inline-flex items-center gap-1 text-caption text-text-muted transition-colors hover:text-danger"
                 >
                   <Trash2 className="size-3.5" />
@@ -233,6 +251,29 @@ export function SpacesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => {
+          if (!next && !deleteMutation.isPending) {
+            setDeleteTarget(null);
+          }
+        }}
+        title="Удалить пространство?"
+        description={
+          deleteTarget
+            ? `«${deleteTarget.name}» и его источники перестанут быть доступны.`
+            : undefined
+        }
+        confirmLabel="Удалить"
+        tone="danger"
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id);
+          }
+        }}
+      />
     </section>
   );
 }

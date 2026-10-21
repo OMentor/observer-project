@@ -97,6 +97,10 @@ test.describe('Плетение · UI smoke', () => {
     await expect(card).toBeVisible();
 
     await card.getByRole('button', { name: 'Удалить' }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Удалить' })
+      .click();
     await expect(page.getByRole('heading', { name })).toBeHidden();
   });
 
