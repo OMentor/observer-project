@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Event, Preset } from '@prisma/client';
+import { Event, Preset, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -16,6 +16,22 @@ import {
   ListEventsDto,
   UpdateEventDto,
 } from './events.dto';
+
+function rangeOverlap(from?: Date, to?: Date): Prisma.EventWhereInput {
+  const conditions: Prisma.EventWhereInput[] = [];
+  if (from) {
+    conditions.push({
+      OR: [
+        { end_at: { gt: from } },
+        { start_at: { equals: from } },
+      ],
+    });
+  }
+  if (to) {
+    conditions.push({ start_at: { lt: to } });
+  }
+  return conditions.length > 0 ? { AND: conditions } : {};
+}
 
 function snapshot(event: Event) {
   return {
@@ -73,14 +89,7 @@ export class EventsService {
       where: {
         source_id: sourceId,
         deleted_at: null,
-        ...(query.from || query.to
-          ? {
-              start_at: {
-                ...(query.from ? { gte: query.from } : {}),
-                ...(query.to ? { lte: query.to } : {}),
-              },
-            }
-          : {}),
+        ...rangeOverlap(query.from, query.to),
       },
       orderBy: { start_at: 'asc' },
     });
@@ -162,14 +171,7 @@ export class EventsService {
       source_id: { in: sourceIds },
       deleted_at: null,
       ...(query.creator_id ? { creator_id: query.creator_id } : {}),
-      ...(query.from || query.to
-        ? {
-            start_at: {
-              ...(query.from ? { gte: query.from } : {}),
-              ...(query.to ? { lte: query.to } : {}),
-            },
-          }
-        : {}),
+      ...rangeOverlap(query.from, query.to),
       ...(query.q
         ? { title: { contains: query.q, mode: 'insensitive' as const } }
         : {}),

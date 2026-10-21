@@ -279,6 +279,55 @@ describe('EventsService', () => {
     expect(where.source_id.in).toEqual(['srcShared']);
   });
 
+  it('findAll отбирает события по пересечению с полуоткрытым диапазоном', async () => {
+    prisma.source.findFirst.mockResolvedValue({ id: 'src1', space_id: 'sp1' });
+    spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
+    prisma.event.findMany.mockResolvedValue([]);
+    const from = new Date('2026-01-10T00:00:00.000Z');
+    const to = new Date('2026-01-11T00:00:00.000Z');
+
+    await service.findAll('u1', 'src1', { from, to });
+
+    const where = prisma.event.findMany.mock.calls[0][0].where;
+    expect(where.AND).toEqual([
+      {
+        OR: [
+          { end_at: { gt: from } },
+          { start_at: { equals: from } },
+        ],
+      },
+      { start_at: { lt: to } },
+    ]);
+  });
+
+  it('findAllAcross использует тот же фильтр пересечения', async () => {
+    prisma.space.findMany.mockResolvedValue([
+      {
+        id: 'sp1',
+        owner_id: 'u1',
+        sources: [{ id: 'src1', visibility: 'SHARED' }],
+        members: [],
+      },
+    ]);
+    prisma.event.count.mockResolvedValue(0);
+    prisma.event.findMany.mockResolvedValue([]);
+    const from = new Date('2026-01-10T00:00:00.000Z');
+    const to = new Date('2026-01-11T00:00:00.000Z');
+
+    await service.findAllAcross('u1', { from, to, page: 1, pageSize: 50 });
+
+    const where = prisma.event.findMany.mock.calls[0][0].where;
+    expect(where.AND).toEqual([
+      {
+        OR: [
+          { end_at: { gt: from } },
+          { start_at: { equals: from } },
+        ],
+      },
+      { start_at: { lt: to } },
+    ]);
+  });
+
   it('findAllAcross запрещает недоступное пространство', async () => {
     prisma.space.findMany.mockResolvedValue([]);
 

@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -115,7 +120,12 @@ export function CalendarPage() {
     spaceFilter || effectiveSourceFilter || search,
   );
 
-  const { data: page, isLoading } = useQuery({
+  const {
+    data: page,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: [
       'event-page',
       { spaceFilter, effectiveSourceFilter, search, range },
@@ -129,6 +139,7 @@ export function CalendarPage() {
         to: range.to,
       }),
     enabled: sources.length > 0,
+    placeholderData: keepPreviousData,
   });
 
   const events = page?.items ?? [];
@@ -463,6 +474,18 @@ export function CalendarPage() {
           </span>
         )}
       </div>
+
+      {isError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-body-sm text-danger"
+        >
+          <span>Не удалось загрузить события. Показаны последние данные.</span>
+          <Button variant="ghost" size="sm" onClick={() => refetch()}>
+            Повторить
+          </Button>
+        </div>
+      )}
 
       {sources.length > 0 && (
         <div className="flex flex-wrap gap-2">
