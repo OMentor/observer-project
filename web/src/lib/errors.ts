@@ -7,3 +7,8 @@ import axios from 'axios';
 export function isNetworkError(error: unknown): boolean {
   return axios.isAxiosError(error) && !error.response;
 }
+
+/** HTTP-статус ответа ошибки (если он есть). */
+export function getErrorStatus(error: unknown): number | undefined {
+  return axios.isAxiosError(error) ? error.response?.status : undefined;
+}

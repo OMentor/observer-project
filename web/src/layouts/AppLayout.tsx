@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import {
   Bell,
   CalendarDays,
+  GitMerge,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -20,6 +21,7 @@ import { useViewTransitionNavigate } from '@/hooks/useViewTransitionNavigate';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { SyncIndicator } from '@/components/SyncIndicator';
+import { ConflictIndicator } from '@/features/sync/ConflictIndicator';
 import { CommandPalette } from '@/components/CommandPalette';
 import { Toaster } from '@/components/Toaster';
 import { SearchInput } from '@/components/SearchInput';
@@ -177,6 +179,7 @@ export function AppLayout({ children }: { children?: ReactNode }) {
         <div className="flex-1" />
 
         <SyncIndicator />
+        <ConflictIndicator />
         <ConnectionIndicator />
         <button
           type="button"
@@ -215,6 +218,12 @@ export function AppLayout({ children }: { children?: ReactNode }) {
             onSelect={() => navigate('/settings')}
           >
             Настройки
+          </DropdownItem>
+          <DropdownItem
+            icon={<GitMerge className="size-4" />}
+            onSelect={() => navigate('/sync/conflicts')}
+          >
+            Конфликты синхронизации
           </DropdownItem>
           <DropdownItem
             icon={<LogOut className="size-4" />}

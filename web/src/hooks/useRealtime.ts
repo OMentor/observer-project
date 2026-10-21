@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   connectRealtime,
   RealtimeEvents,
+  type ConflictRealtimePayload,
   type RealtimeMessage,
 } from '@/lib/realtime';
 import { useAuthStore } from '@/store/auth';
@@ -41,6 +42,19 @@ function handleMessage(message: RealtimeMessage, queryClient: QueryClient) {
         tone: 'info',
       });
     }
+    return;
+  }
+
+  if (event === RealtimeEvents.syncConflict) {
+    const data = payload as ConflictRealtimePayload;
+    queryClient.invalidateQueries({ queryKey: ['sync-conflicts'] });
+    queryClient.invalidateQueries({ queryKey: ['event-page'] });
+    queryClient.invalidateQueries({ queryKey: ['events'] });
+    push({
+      title: 'Конфликт синхронизации',
+      description: `«${data.title}» изменено во внешнем календаре`,
+      tone: 'warning',
+    });
     return;
   }
 

@@ -33,14 +33,21 @@ type CalendarMode = 'normal' | 'quarter' | 'year';
 
 function renderEventContent(arg: EventContentArg) {
   const color = (arg.event.backgroundColor as string) ?? 'var(--accent)';
+  const hasConflict = arg.event.extendedProps.syncStatus === 'conflict';
   return (
     <div
-      className="h-full overflow-hidden rounded-sm px-2 py-1 text-caption"
+      className="relative h-full overflow-hidden rounded-sm px-2 py-1 text-caption"
       style={{
         background: `${color}33`,
         borderLeft: `3px solid ${color}`,
       }}
     >
+      {hasConflict && (
+        <span
+          className="absolute right-1 top-1 size-2 rounded-full bg-danger"
+          title="Конфликт синхронизации"
+        />
+      )}
       {!arg.event.allDay && (
         <div className="truncate text-text-secondary">{arg.timeText}</div>
       )}
@@ -213,6 +220,7 @@ export function CalendarPage() {
       backgroundColor: event.busy ? BUSY_COLOR : color,
       borderColor: event.busy ? BUSY_COLOR : color,
       classNames: event.busy ? ['opacity-70'] : [],
+      extendedProps: { syncStatus: event.sync_status },
       editable,
       startEditable: editable,
       durationEditable: editable,

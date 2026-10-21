@@ -2,6 +2,7 @@ import { api } from '@/lib/api';
 import type {
   AuthResponse,
   CalendarEvent,
+  ConflictList,
   EventHistoryEntry,
   EventPage,
   EventPayload,
@@ -9,6 +10,7 @@ import type {
   FunnelReport,
   Member,
   Preset,
+  ResolveConflictPayload,
   Space,
   Source,
   Token,
@@ -210,5 +212,25 @@ export async function seedDemoData() {
 
 export async function fetchFunnel() {
   const { data } = await api.get<FunnelReport>('/analytics/funnel');
+  return data;
+}
+
+export async function fetchConflicts(params?: {
+  space_id?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const { data } = await api.get<ConflictList>('/sync/conflicts', { params });
+  return data;
+}
+
+export async function resolveConflict(
+  id: string,
+  payload: ResolveConflictPayload,
+) {
+  const { data } = await api.post<CalendarEvent>(
+    `/sync/conflicts/${id}/resolve`,
+    payload,
+  );
   return data;
 }
