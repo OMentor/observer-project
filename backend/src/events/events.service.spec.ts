@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventsService } from './events.service';
+import { RecurrenceService } from './recurrence.service';
 
 describe('EventsService', () => {
   let prisma: {
@@ -14,6 +15,7 @@ describe('EventsService', () => {
     space: { findMany: jest.Mock };
     eventHistory: { create: jest.Mock; findMany: jest.Mock };
     sourceExternalMap: { findFirst: jest.Mock };
+    eventException: { findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let spaces: { getAccess: jest.Mock; ensureMember: jest.Mock };
@@ -58,6 +60,7 @@ describe('EventsService', () => {
       space: { findMany: jest.fn() },
       eventHistory: { create: jest.fn(), findMany: jest.fn() },
       sourceExternalMap: { findFirst: jest.fn().mockResolvedValue(null) },
+      eventException: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
     spaces = { getAccess: jest.fn(), ensureMember: jest.fn() };
@@ -68,6 +71,7 @@ describe('EventsService', () => {
       spaces as never,
       realtime as never,
       syncQueue as never,
+      new RecurrenceService(),
     );
   });
 
@@ -118,7 +122,8 @@ describe('EventsService', () => {
     expect(syncQueue.enqueuePush).not.toHaveBeenCalled();
   });
 
-  it('update пишет историю UPDATED со старыми и новыми данными', async () => {    prisma.source.findFirst.mockResolvedValue({ space_id: 'sp1' });
+  it('update пишет историю UPDATED со старыми и новыми данными', async () => {
+    prisma.source.findFirst.mockResolvedValue({ space_id: 'sp1' });
     spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
     prisma.event.findFirst.mockResolvedValue(baseEvent);
     prisma.event.update.mockResolvedValue({ ...baseEvent, title: 'Правка' });
@@ -291,12 +296,95 @@ describe('EventsService', () => {
     const where = prisma.event.findMany.mock.calls[0][0].where;
     expect(where.AND).toEqual([
       {
-        OR: [
-          { end_at: { gt: from } },
-          { start_at: { equals: from } },
-        ],
+        OR: [{ end_at: { gt: from } }, { start_at: { equals: from } }],
       },
       { start_at: { lt: to } },
+    ]);
+  });
+
+  it('findAll раскрывает повторяющиеся события в диапазоне', async () => {
+    prisma.source.findFirst.mockResolvedValue({ id: 'src1', space_id: 'sp1' });
+    spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
+    const recurring = {
+      ...baseEvent,
+      id: 'e2',
+      title: 'Повтор',
+      start_at: new Date('2026-01-01T09:00:00.000Z'),
+      end_at: new Date('2026-01-01T10:00:00.000Z'),
+      rrule: 'FREQ=DAILY;COUNT=3',
+    };
+    prisma.event.findMany
+      .mockResolvedValueOnce([baseEvent])
+      .mockResolvedValueOnce([recurring]);
+    prisma.eventException.findMany.mockResolvedValue([
+      {
+        id: 'ex1',
+        event_id: 'e2',
+        occurrence_at: new Date('2026-01-02T09:00:00.000Z'),
+        is_deleted: false,
+        title: null,
+        description: null,
+        start_at: new Date('2026-01-02T11:00:00.000Z'),
+        end_at: new Date('2026-01-02T12:00:00.000Z'),
+        all_day: null,
+        timezone: null,
+        location: null,
+        rrule: null,
+        external_etag: null,
+        sync_status: 'local',
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    ]);
+
+    const result = await service.findAll('u1', 'src1', {
+      from: new Date('2026-01-01T00:00:00.000Z'),
+      to: new Date('2026-01-04T00:00:00.000Z'),
+    });
+
+    expect(result.map((event) => event.start_at.toISOString())).toEqual([
+      '2026-01-01T09:00:00.000Z',
+      '2026-01-01T10:00:00.000Z',
+      '2026-01-02T11:00:00.000Z',
+      '2026-01-03T09:00:00.000Z',
+    ]);
+    expect(result[2].id).toBe(
+      `e2@${new Date('2026-01-02T09:00:00.000Z').getTime()}`,
+    );
+  });
+
+  it('findAllAcross пагинирует раскрытые вхождения', async () => {
+    prisma.space.findMany.mockResolvedValue([
+      {
+        id: 'sp1',
+        owner_id: 'u1',
+        sources: [{ id: 'src1', visibility: 'SHARED' }],
+        members: [],
+      },
+    ]);
+    const recurring = {
+      ...baseEvent,
+      id: 'e2',
+      title: 'Повтор',
+      start_at: new Date('2026-01-01T09:00:00.000Z'),
+      end_at: new Date('2026-01-01T10:00:00.000Z'),
+      rrule: 'FREQ=DAILY;COUNT=3',
+    };
+    prisma.event.findMany
+      .mockResolvedValueOnce([baseEvent])
+      .mockResolvedValueOnce([recurring]);
+
+    const result = await service.findAllAcross('u1', {
+      from: new Date('2026-01-01T00:00:00.000Z'),
+      to: new Date('2026-01-04T00:00:00.000Z'),
+      page: 2,
+      pageSize: 2,
+    });
+
+    expect(result.total).toBe(4);
+    expect(result.items.map((event) => event.start_at.toISOString())).toEqual([
+      '2026-01-02T09:00:00.000Z',
+      '2026-01-03T09:00:00.000Z',
     ]);
   });
 
@@ -319,10 +407,7 @@ describe('EventsService', () => {
     const where = prisma.event.findMany.mock.calls[0][0].where;
     expect(where.AND).toEqual([
       {
-        OR: [
-          { end_at: { gt: from } },
-          { start_at: { equals: from } },
-        ],
+        OR: [{ end_at: { gt: from } }, { start_at: { equals: from } }],
       },
       { start_at: { lt: to } },
     ]);

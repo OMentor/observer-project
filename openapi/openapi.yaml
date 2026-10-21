@@ -950,6 +950,19 @@ components:
         rrule: { type: string, nullable: true, example: 'FREQ=WEEKLY;BYDAY=TU' }
         recurrence_parent_id: { type: string, format: uuid, nullable: true }
         recurrence_exceptions: { type: array, nullable: true, items: { type: string, format: date-time } }
+        recurring_event_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID родительского события для раскрытого вхождения.
+        original_start_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Исходное время вхождения (RECURRENCE-ID) до переопределений.
+        is_recurring:
+          type: boolean
+          description: true для раскрытого вхождения повторяющегося события.
         external_id: { type: string, nullable: true }
         external_provider: { $ref: '#/components/schemas/SyncProvider' }
         sync_status: { $ref: '#/components/schemas/SyncStatus' }

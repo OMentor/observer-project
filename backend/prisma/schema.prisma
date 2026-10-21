@@ -150,6 +150,7 @@ model Event {
   creator             User           @relation("EventCreator", fields: [creator_id], references: [id])
   recurrence_parent   Event?         @relation("EventRecurrence", fields: [recurrence_parent_id], references: [id])
   recurrence_children Event[]        @relation("EventRecurrence")
+  exceptions          EventException[]
   history             EventHistory[]
   shares              EventShare[]
   conflicts           SyncConflict[]
@@ -157,6 +158,30 @@ model Event {
   @@index([source_id, start_at])
   @@index([creator_id])
   @@map("events")
+}
+
+model EventException {
+  id             String          @id @default(uuid()) @db.Uuid
+  event_id       String          @db.Uuid
+  occurrence_at  DateTime
+  is_deleted     Boolean         @default(false)
+  title          String?
+  description    String?
+  start_at       DateTime?
+  end_at         DateTime?
+  all_day        Boolean?
+  timezone       String?
+  location       String?
+  rrule          String?
+  external_etag  String?
+  sync_status    EventSyncStatus @default(local)
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, occurrence_at])
+  @@map("event_exceptions")
 }
 
 model Token {

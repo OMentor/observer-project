@@ -551,3 +551,19 @@ Flutter целиком: токены, тема Material, шрифты Onest/Lora
   восстановлении соединения), добавлен `Semantics`.
 - Проверка Mobile: `flutter analyze` — 0; `flutter test` — **107/107**
   (15 новых тестов, 2 golden `conflict_card_dark/light.png`).
+
+### Этап 7 — повторяющиеся события (Фаза 7.1) ✅
+
+- **Backend**: таблица `event_exceptions` (overrides/удаления вхождений,
+  `UNIQUE(event_id, occurrence_at)`), миграция
+  `20261021200511_event_exceptions`, библиотека `rrule@2.8.1`.
+- **`RecurrenceService`**: раскрытие RRULE для `[from, to)`, часовые пояса и
+  переходы на летнее время, `UNTIL`/`COUNT`, overrides, удалённые вхождения,
+  перенос вхождения в диапазон, лимит 1000, безопасный fallback при
+  некорректном правиле.
+- **`EventsService`**: при заданных `from` и `to` объединяет обычные события с
+  вхождениями серий, сортирует и пагинирует; без диапазона сохранён прежний
+  путь (совместимость с Mobile). Вхождения отдаются с `recurring_event_id`,
+  `original_start_at`, `is_recurring` и id `<event-id>@<epoch-ms>`.
+- **Проверка**: jest **164/164**, `tsc`, ESLint и `nest build` — чисто; живой
+  smoke на backend — серия раскрывается и пагинируется, timezone сохраняется.

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Event, Preset, Prisma } from '@prisma/client';
+import { Event, EventException, Preset, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpaceAccess, SpacesService } from '../spaces/spaces.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -16,15 +16,13 @@ import {
   ListEventsDto,
   UpdateEventDto,
 } from './events.dto';
+import { RecurrenceService } from './recurrence.service';
 
 function rangeOverlap(from?: Date, to?: Date): Prisma.EventWhereInput {
   const conditions: Prisma.EventWhereInput[] = [];
   if (from) {
     conditions.push({
-      OR: [
-        { end_at: { gt: from } },
-        { start_at: { equals: from } },
-      ],
+      OR: [{ end_at: { gt: from } }, { start_at: { equals: from } }],
     });
   }
   if (to) {
@@ -53,6 +51,7 @@ export class EventsService {
     private readonly spaces: SpacesService,
     private readonly realtime: RealtimeService,
     private readonly syncQueue: SyncQueueService,
+    private readonly recurrence: RecurrenceService,
   ) {}
 
   async create(userId: string, sourceId: string, dto: CreateEventDto) {
@@ -85,15 +84,47 @@ export class EventsService {
 
   async findAll(userId: string, sourceId: string, query: ListEventsDto) {
     const { access } = await this.resolveSource(userId, sourceId);
-    const events = await this.prisma.event.findMany({
-      where: {
-        source_id: sourceId,
-        deleted_at: null,
-        ...rangeOverlap(query.from, query.to),
-      },
-      orderBy: { start_at: 'asc' },
-    });
-    return events.map((event) => this.mask(event, access, userId));
+    if (!query.from || !query.to) {
+      const events = await this.prisma.event.findMany({
+        where: {
+          source_id: sourceId,
+          deleted_at: null,
+          ...rangeOverlap(query.from, query.to),
+        },
+        orderBy: { start_at: 'asc' },
+      });
+      return events.map((event) => this.mask(event, access, userId));
+    }
+
+    const [events, recurring] = await Promise.all([
+      this.prisma.event.findMany({
+        where: {
+          source_id: sourceId,
+          deleted_at: null,
+          rrule: null,
+          ...rangeOverlap(query.from, query.to),
+        },
+      }),
+      this.prisma.event.findMany({
+        where: {
+          source_id: sourceId,
+          deleted_at: null,
+          rrule: { not: null },
+        },
+      }),
+    ]);
+    const exceptions = await this.loadExceptions(recurring);
+    const expanded = recurring.flatMap((event) =>
+      this.recurrence.expand({
+        event,
+        exceptions: exceptions.get(event.id) ?? [],
+        from: query.from as Date,
+        to: query.to as Date,
+      }),
+    );
+    return [...events, ...expanded]
+      .sort((a, b) => a.start_at.getTime() - b.start_at.getTime())
+      .map((event) => this.mask(event, access, userId));
   }
 
   async findOne(userId: string, eventId: string) {
@@ -167,14 +198,73 @@ export class EventsService {
       return { items: [], total: 0, page, pageSize };
     }
 
-    const where = {
+    const filters = {
       source_id: { in: sourceIds },
       deleted_at: null,
       ...(query.creator_id ? { creator_id: query.creator_id } : {}),
-      ...rangeOverlap(query.from, query.to),
       ...(query.q
         ? { title: { contains: query.q, mode: 'insensitive' as const } }
         : {}),
+    };
+
+    const from = query.from;
+    const to = query.to;
+    const search = query.q?.toLocaleLowerCase();
+    if (from && to) {
+      const [events, recurring] = await Promise.all([
+        this.prisma.event.findMany({
+          where: {
+            ...filters,
+            rrule: null,
+            ...rangeOverlap(from, to),
+          },
+        }),
+        this.prisma.event.findMany({
+          where: {
+            ...filters,
+            rrule: { not: null },
+          },
+        }),
+      ]);
+      const exceptions = await this.loadExceptions(recurring);
+      const expanded = recurring.flatMap((event) =>
+        this.recurrence.expand({
+          event,
+          exceptions: exceptions.get(event.id) ?? [],
+          from,
+          to,
+        }),
+      );
+      const merged = [...events, ...expanded].sort(
+        (a, b) => a.start_at.getTime() - b.start_at.getTime(),
+      );
+      const searched = search
+        ? merged.filter((event) =>
+            event.title.toLocaleLowerCase().includes(search),
+          )
+        : merged;
+
+      return {
+        items: searched
+          .slice((page - 1) * pageSize, page * pageSize)
+          .map((event) => {
+            const spaceId = spaceBySource.get(event.source_id) as string;
+            const preset = presetBySpace.get(spaceId) as Preset;
+            return this.mask(
+              event,
+              { isOwner: preset === 'FULL', preset },
+              userId,
+            );
+          }),
+        total: searched.length,
+        page,
+        pageSize,
+      };
+    }
+
+    const where = {
+      ...filters,
+      ...rangeOverlap(query.from, query.to),
     };
 
     const [total, events] = await this.prisma.$transaction([
@@ -191,11 +281,7 @@ export class EventsService {
       items: events.map((event) => {
         const spaceId = spaceBySource.get(event.source_id) as string;
         const preset = presetBySpace.get(spaceId) as Preset;
-        return this.mask(
-          event,
-          { isOwner: preset === 'FULL', preset },
-          userId,
-        );
+        return this.mask(event, { isOwner: preset === 'FULL', preset }, userId);
       }),
       total,
       page,
@@ -204,10 +290,11 @@ export class EventsService {
   }
 
   async update(userId: string, eventId: string, dto: UpdateEventDto) {
-    const { event: current, access, source } = await this.loadWithAccess(
-      userId,
-      eventId,
-    );
+    const {
+      event: current,
+      access,
+      source,
+    } = await this.loadWithAccess(userId, eventId);
     this.assertCanWrite(access, userId, current);
     const updated = await this.prisma.event.update({
       where: { id: eventId },
@@ -240,16 +327,23 @@ export class EventsService {
   }
 
   async remove(userId: string, eventId: string) {
-    const { event: current, access, source } = await this.loadWithAccess(
-      userId,
-      eventId,
-    );
+    const {
+      event: current,
+      access,
+      source,
+    } = await this.loadWithAccess(userId, eventId);
     this.assertCanWrite(access, userId, current);
     await this.prisma.event.update({
       where: { id: eventId },
       data: { deleted_at: new Date() },
     });
-    await this.writeHistory(eventId, userId, 'DELETED', snapshot(current), null);
+    await this.writeHistory(
+      eventId,
+      userId,
+      'DELETED',
+      snapshot(current),
+      null,
+    );
     await this.realtime.eventChanged(
       RealtimeEvents.eventDeleted,
       current,
@@ -270,6 +364,22 @@ export class EventsService {
       orderBy: { created_at: 'desc' },
       include: { user: { select: { id: true, name: true } } },
     });
+  }
+
+  private async loadExceptions(events: Event[]) {
+    const byEvent = new Map<string, EventException[]>();
+    if (events.length === 0) {
+      return byEvent;
+    }
+    const rows = await this.prisma.eventException.findMany({
+      where: { event_id: { in: events.map((event) => event.id) } },
+    });
+    for (const row of rows) {
+      const list = byEvent.get(row.event_id) ?? [];
+      list.push(row);
+      byEvent.set(row.event_id, list);
+    }
+    return byEvent;
   }
 
   private isMasked(event: Event, access: SpaceAccess, userId: string) {
@@ -333,7 +443,8 @@ export class EventsService {
     }
   }
 
-  private async resolveSource(userId: string, sourceId: string) {    const source = await this.prisma.source.findFirst({
+  private async resolveSource(userId: string, sourceId: string) {
+    const source = await this.prisma.source.findFirst({
       where: { id: sourceId, deleted_at: null },
       select: { id: true, space_id: true, visibility: true },
     });
