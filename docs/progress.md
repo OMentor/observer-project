@@ -587,3 +587,21 @@ Flutter целиком: токены, тема Material, шрифты Onest/Lora
   чисто. Radicale E2E: серия 4 дня → push RRULE; удаление одного вхождения →
   EXDATE; перенос одного вхождения → RECURRENCE-ID; API вернул 3 вхождения,
   удалённое отсутствует, перенесённое — с новым временем.
+- **Воспроизводимый E2E**: `backend/scripts/recurrence-e2e.ts`, запуск
+  `npm run e2e:recurrence`. Создаёт временный календарь в Radicale, space,
+  source и connection, проверяет RRULE → EXDATE → RECURRENCE-ID и API-диапазон,
+  затем удаляет артефакты (`--keep` оставляет для разбора). Параметры:
+  `--api`, `--caldav`, `--email`, `--password`, `--provider`,
+  `--caldav-username`, `--caldav-password`.
+
+### Бэклог после 7.2
+
+- **CI**: минимальный workflow (install → `tsc` → ESLint → Jest) на
+  `pull_request`; хостинг репозитория пока не определён (GitHub Actions или
+  GitLab CI).
+- **Автоматизация Radicale E2E**: запуск `npm run e2e:recurrence` в CI с
+  сервис-контейнерами Postgres/Redis/Radicale; сейчас E2E воспроизводится
+  локально одной командой.
+- **Производительность серий**: partial index `WHERE rrule IS NOT NULL` и
+  Redis-кэш `source_id + range`, TTL 5 мин — при росте нагрузки.
+- **«Это и все будущие»**: редактирование хвоста серии — вне scope MVP.
