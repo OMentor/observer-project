@@ -30,6 +30,9 @@ class SpaceScreen extends ConsumerWidget {
     final preset = ref.watch(spacePresetProvider(spaceId)).asData?.value;
     final isFull = Access.isFull(preset);
     final canCreateEvents = Access.canWriteEvents(preset);
+    final me = ref.watch(authControllerProvider).asData?.value?.id;
+    final space = spaceAsync.asData?.value;
+    final isOwner = space != null && space.ownerId == me;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,6 +54,21 @@ class SpaceScreen extends ConsumerWidget {
               tooltip: 'Добавить источник',
               icon: const Icon(Icons.create_new_folder_outlined),
               onPressed: () => _addSource(context, ref),
+            ),
+          if (isOwner)
+            PopupMenuButton<String>(
+              tooltip: 'Ещё',
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _deleteSpace(context, ref, space);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Удалить пространство'),
+                ),
+              ],
             ),
         ],
       ),
@@ -133,6 +151,38 @@ class SpaceScreen extends ConsumerWidget {
     } catch (error) {
       ref.read(toastProvider.notifier).push(
             title: 'Не удалось создать источник',
+            description: error.toString(),
+            tone: ToastTone.danger,
+          );
+    }
+  }
+
+  Future<void> _deleteSpace(
+    BuildContext context,
+    WidgetRef ref,
+    Space space,
+  ) async {
+    final confirmed = await showAppConfirm(
+      context,
+      title: 'Удалить пространство?',
+      message:
+          '«${space.name}» и его источники перестанут быть доступны.',
+      confirmLabel: 'Удалить',
+      danger: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await ref.read(apiClientProvider).deleteSpace(space.id);
+      ref.invalidate(spacesProvider);
+      ref.invalidate(allEventsProvider);
+      if (context.mounted) {
+        context.go('/spaces');
+      }
+    } catch (error) {
+      ref.read(toastProvider.notifier).push(
+            title: 'Не удалось удалить пространство',
             description: error.toString(),
             tone: ToastTone.danger,
           );

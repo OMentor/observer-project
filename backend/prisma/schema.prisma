@@ -24,23 +24,40 @@ enum SourceVisibility {
   PRIVATE
 }
 
-enum SyncProvider {
-  CALDAV
-  GOOGLE
-  MICROSOFT
+enum ExternalProvider {
+  yandex
+  mailru
+  apple
 }
 
 enum SyncDirection {
-  BOTH
-  IMPORT
-  EXPORT
+  both
+  in
+  out
 }
 
-enum SyncStatus {
-  IDLE
-  SYNCING
-  ERROR
-  CONFLICT
+enum ConnectionStatus {
+  active
+  error
+  orphaned
+}
+
+enum ExternalMapStatus {
+  active
+  orphaned
+}
+
+enum EventSyncStatus {
+  local
+  synced
+  pending
+  conflict
+}
+
+enum ConflictResolution {
+  local
+  external
+  merged
 }
 
 enum HistoryAction {
@@ -124,14 +141,16 @@ model Event {
   updated_at            DateTime      @updatedAt
   deleted_at            DateTime?
   external_id           String?
-  external_provider     SyncProvider?
-  sync_status           SyncStatus    @default(IDLE)
+  external_provider     ExternalProvider?
+  external_etag         String?
+  sync_status           EventSyncStatus @default(local)
   last_synced_at        DateTime?
 
   source              Source         @relation(fields: [source_id], references: [id])
   creator             User           @relation("EventCreator", fields: [creator_id], references: [id])
   recurrence_parent   Event?         @relation("EventRecurrence", fields: [recurrence_parent_id], references: [id])
   recurrence_children Event[]        @relation("EventRecurrence")
+  exceptions          EventException[]
   history             EventHistory[]
   shares              EventShare[]
   conflicts           SyncConflict[]
@@ -139,6 +158,30 @@ model Event {
   @@index([source_id, start_at])
   @@index([creator_id])
   @@map("events")
+}
+
+model EventException {
+  id             String          @id @default(uuid()) @db.Uuid
+  event_id       String          @db.Uuid
+  occurrence_at  DateTime
+  is_deleted     Boolean         @default(false)
+  title          String?
+  description    String?
+  start_at       DateTime?
+  end_at         DateTime?
+  all_day        Boolean?
+  timezone       String?
+  location       String?
+  rrule          String?
+  external_etag  String?
+  sync_status    EventSyncStatus @default(local)
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, occurrence_at])
+  @@map("event_exceptions")
 }
 
 model Token {
@@ -193,19 +236,17 @@ model EventHistory {
 }
 
 model ExternalConnection {
-  id               String       @id @default(uuid()) @db.Uuid
-  user_id          String       @db.Uuid
-  provider         SyncProvider
-  access_token     String?
-  refresh_token    String?
-  token_expires_at DateTime?
-  caldav_url       String?
-  caldav_username  String?
-  caldav_password  String?
-  sync_token       String?
-  last_sync_at     DateTime?
-  sync_status      SyncStatus   @default(IDLE)
-  created_at       DateTime     @default(now())
+  id                  String           @id @default(uuid()) @db.Uuid
+  user_id             String           @db.Uuid
+  provider            ExternalProvider
+  caldav_url          String
+  caldav_username     String
+  caldav_password_enc String
+  sync_token          String?
+  last_sync_at        DateTime?
+  sync_status         ConnectionStatus @default(active)
+  last_error          String?
+  created_at          DateTime         @default(now())
 
   user        User                @relation(fields: [user_id], references: [id])
   source_maps SourceExternalMap[]
@@ -215,29 +256,33 @@ model ExternalConnection {
 }
 
 model SourceExternalMap {
-  id                     String        @id @default(uuid()) @db.Uuid
-  source_id              String        @db.Uuid
-  external_connection_id String        @db.Uuid
+  id                     String            @id @default(uuid()) @db.Uuid
+  source_id              String            @db.Uuid
+  external_connection_id String            @db.Uuid
   external_calendar_id   String
-  sync_direction         SyncDirection @default(BOTH)
-  created_at             DateTime      @default(now())
+  external_calendar_name String?
+  sync_direction         SyncDirection     @default(both)
+  sync_status            ExternalMapStatus @default(active)
+  created_at             DateTime          @default(now())
 
   source              Source             @relation(fields: [source_id], references: [id])
   external_connection ExternalConnection @relation(fields: [external_connection_id], references: [id])
 
   @@unique([source_id, external_connection_id])
+  @@unique([external_connection_id, external_calendar_id])
   @@map("source_external_map")
 }
 
 model SyncConflict {
-  id                     String    @id @default(uuid()) @db.Uuid
-  event_id               String    @db.Uuid
-  external_connection_id String    @db.Uuid
+  id                     String              @id @default(uuid()) @db.Uuid
+  event_id               String              @db.Uuid
+  external_connection_id String              @db.Uuid
   local_data             Json
   external_data          Json
-  created_at             DateTime  @default(now())
+  external_etag          String?
+  resolution             ConflictResolution?
   resolved_at            DateTime?
-  resolution             String?
+  created_at             DateTime            @default(now())
 
   event Event @relation(fields: [event_id], references: [id])
 

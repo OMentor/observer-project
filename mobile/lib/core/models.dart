@@ -168,6 +168,7 @@ class CalendarEvent {
     this.location,
     this.rrule,
     this.busy = false,
+    this.syncStatus = 'local',
   });
 
   final String id;
@@ -184,6 +185,9 @@ class CalendarEvent {
   final String createdAt;
   final String updatedAt;
   final bool busy;
+  final String syncStatus;
+
+  bool get hasConflict => syncStatus == 'conflict';
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
         id: json['id'] as String,
@@ -200,6 +204,7 @@ class CalendarEvent {
         createdAt: json['created_at'] as String,
         updatedAt: json['updated_at'] as String,
         busy: json['busy'] as bool? ?? false,
+        syncStatus: json['sync_status'] as String? ?? 'local',
       );
 
   Map<String, dynamic> toJson() => {
@@ -217,6 +222,7 @@ class CalendarEvent {
         'created_at': createdAt,
         'updated_at': updatedAt,
         'busy': busy,
+        'sync_status': syncStatus,
       };
 }
 
@@ -397,4 +403,159 @@ class EventPayload {
         'location': location,
         'description': description,
       };
+}
+
+/// Как разрешить конфликт синхронизации (совпадает с backend-контрактом).
+enum ConflictResolution {
+  local('local'),
+  external('external'),
+  merged('merged');
+
+  const ConflictResolution(this.wire);
+
+  final String wire;
+
+  static ConflictResolution? fromWire(String? value) {
+    for (final resolution in ConflictResolution.values) {
+      if (resolution.wire == value) {
+        return resolution;
+      }
+    }
+    return null;
+  }
+}
+
+/// Снимок полей события в одной из версий конфликта.
+class EventSnapshot {
+  const EventSnapshot({
+    required this.title,
+    required this.startAt,
+    required this.endAt,
+    required this.allDay,
+    this.description,
+    this.timezone,
+    this.location,
+    this.rrule,
+  });
+
+  final String title;
+  final String? description;
+  final DateTime startAt;
+  final DateTime endAt;
+  final bool allDay;
+  final String? timezone;
+  final String? location;
+  final String? rrule;
+
+  factory EventSnapshot.fromJson(Map<String, dynamic> json) => EventSnapshot(
+        title: json['title'] as String? ?? '',
+        description: json['description'] as String?,
+        startAt: DateTime.parse(json['start_at'] as String).toLocal(),
+        endAt: DateTime.parse(json['end_at'] as String).toLocal(),
+        allDay: json['all_day'] as bool? ?? false,
+        timezone: json['timezone'] as String?,
+        location: json['location'] as String?,
+        rrule: json['rrule'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'description': description,
+        'start_at': startAt.toUtc().toIso8601String(),
+        'end_at': endAt.toUtc().toIso8601String(),
+        'all_day': allDay,
+        'timezone': timezone,
+        'location': location,
+        'rrule': rrule,
+      };
+}
+
+/// Краткая ссылка на событие, к которому относится конфликт.
+class ConflictEventRef {
+  const ConflictEventRef({
+    required this.id,
+    required this.title,
+    required this.sourceId,
+  });
+
+  final String id;
+  final String title;
+  final String sourceId;
+
+  factory ConflictEventRef.fromJson(Map<String, dynamic> json) =>
+      ConflictEventRef(
+        id: json['id'] as String,
+        title: json['title'] as String? ?? '',
+        sourceId: json['source_id'] as String,
+      );
+}
+
+/// Неразрешённый конфликт между локальной и внешней версией события.
+class ConflictItem {
+  const ConflictItem({
+    required this.id,
+    required this.eventId,
+    required this.localData,
+    required this.externalData,
+    required this.createdAt,
+    required this.event,
+    this.connectionId,
+    this.externalEtag,
+    this.resolution,
+    this.resolvedAt,
+  });
+
+  final String id;
+  final String eventId;
+  final String? connectionId;
+  final EventSnapshot localData;
+  final EventSnapshot externalData;
+  final String? externalEtag;
+  final ConflictResolution? resolution;
+  final DateTime? resolvedAt;
+  final DateTime createdAt;
+  final ConflictEventRef event;
+
+  factory ConflictItem.fromJson(Map<String, dynamic> json) => ConflictItem(
+        id: json['id'] as String,
+        eventId: json['event_id'] as String,
+        connectionId: json['connection_id'] as String?,
+        localData: EventSnapshot.fromJson(
+          json['local_data'] as Map<String, dynamic>,
+        ),
+        externalData: EventSnapshot.fromJson(
+          json['external_data'] as Map<String, dynamic>,
+        ),
+        externalEtag: json['external_etag'] as String?,
+        resolution: ConflictResolution.fromWire(json['resolution'] as String?),
+        resolvedAt: json['resolved_at'] == null
+            ? null
+            : DateTime.parse(json['resolved_at'] as String).toLocal(),
+        createdAt:
+            DateTime.parse(json['created_at'] as String).toLocal(),
+        event: ConflictEventRef.fromJson(
+          json['event'] as Map<String, dynamic>,
+        ),
+      );
+}
+
+/// Страница списка конфликтов (`GET /sync/conflicts`).
+class ConflictList {
+  const ConflictList({
+    required this.items,
+    required this.limit,
+    required this.offset,
+  });
+
+  final List<ConflictItem> items;
+  final int limit;
+  final int offset;
+
+  factory ConflictList.fromJson(Map<String, dynamic> json) => ConflictList(
+        items: (json['items'] as List<dynamic>? ?? const [])
+            .map((e) => ConflictItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        limit: json['limit'] as int? ?? 50,
+        offset: json['offset'] as int? ?? 0,
+      );
 }

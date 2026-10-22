@@ -35,6 +35,8 @@ export type Source = {
   created_at: string;
 };
 
+export type SyncStatus = 'local' | 'synced' | 'pending' | 'conflict';
+
 export type CalendarEvent = {
   id: string;
   source_id: string;
@@ -49,6 +51,7 @@ export type CalendarEvent = {
   rrule: string | null;
   created_at: string;
   updated_at: string;
+  sync_status?: SyncStatus;
   busy?: boolean;
 };
 
@@ -137,3 +140,51 @@ export type FunnelReport = {
   steps: FunnelStep[];
   generated_at: string;
 };
+
+/** Снимок полей события в конфликте (snake_case, даты — ISO-строки). */
+export type EventSnapshot = {
+  title: string;
+  description: string | null;
+  start_at: string;
+  end_at: string;
+  all_day: boolean;
+  timezone: string;
+  location: string | null;
+  rrule: string | null;
+};
+
+export type ConflictResolution = 'local' | 'external' | 'merged';
+
+export type Conflict = {
+  id: string;
+  event_id: string;
+  connection_id: string;
+  local_data: EventSnapshot;
+  external_data: EventSnapshot;
+  external_etag: string | null;
+  resolution: ConflictResolution | null;
+  resolved_at: string | null;
+  created_at: string;
+  event: { id: string; title: string; source_id: string };
+};
+
+export type ConflictList = {
+  items: Conflict[];
+  limit: number;
+  offset: number;
+};
+
+export type MergedEventData = Partial<{
+  title: string;
+  description: string | null;
+  start_at: string;
+  end_at: string;
+  all_day: boolean;
+  timezone: string;
+  location: string | null;
+}>;
+
+export type ResolveConflictPayload =
+  | { resolution: 'local' }
+  | { resolution: 'external' }
+  | { resolution: 'merged'; merged_data: MergedEventData };

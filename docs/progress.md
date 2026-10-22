@@ -531,3 +531,59 @@ Flutter целиком: токены, тема Material, шрифты Onest/Lora
   CommandPalette/SpacePicker не нужны — эквиваленты в шапке экранов.
 - Golden обновляются вручную: `flutter test --update-goldens`.
 - Figma недоступна; iOS на Windows не проверяется.
+
+### Этап 6 — синхронизация (Фазы 4.1–4.4) ✅
+
+- **4.1 Backend**: `ConflictResolverService`, `GET/POST /sync/conflicts`,
+  снимок внешней версии в `SyncConflict`, `sync.conflict` через Redis-шину;
+  проверено на Radicale, jest 147/147.
+- **4.2 Web**: страница `/sync/conflicts`, diff-модалка, индикатор, realtime;
+  tsc/oxlint 0, vitest 86/86, Playwright 3/3. Коммит `a9be0d9`.
+- **4.3 Mobile**: список и экран разрешения конфликтов, объединение полей,
+  бейдж на вкладке календаря, строка в профиле, красная точка в событии;
+  realtime-инвалидация. Конфликты — только онлайн.
+- **4.4 E2E Mobile**: `integration_test/conflict_external_test.dart` —
+  вход, бейдж, профиль, список, экран diff, разрешение «Внешняя версия»,
+  пустое состояние. Сидинг — `backend/scripts/seed-e2e.ts`, realtime-триггер —
+  `backend/scripts/trigger-conflict.ts`. Прогон на `emulator-5554` — **1/1
+  PASS**. По пути исправлен `AppToastHost`: у кнопки закрытия убран `tooltip`
+  (падал без `Overlay` и ломал layout при старте, когда приходил toast о
+  восстановлении соединения), добавлен `Semantics`.
+- Проверка Mobile: `flutter analyze` — 0; `flutter test` — **107/107**
+  (15 новых тестов, 2 golden `conflict_card_dark/light.png`).
+
+### Этап 7 — повторяющиеся события (Фаза 7.1) ✅
+
+- **Backend**: таблица `event_exceptions` (overrides/удаления вхождений,
+  `UNIQUE(event_id, occurrence_at)`), миграция
+  `20261021200511_event_exceptions`, библиотека `rrule@2.8.1`.
+- **`RecurrenceService`**: раскрытие RRULE для `[from, to)`, часовые пояса и
+  переходы на летнее время, `UNTIL`/`COUNT`, overrides, удалённые вхождения,
+  перенос вхождения в диапазон, лимит 1000, безопасный fallback при
+  некорректном правиле.
+- **`EventsService`**: при заданных `from` и `to` объединяет обычные события с
+  вхождениями серий, сортирует и пагинирует; без диапазона сохранён прежний
+  путь (совместимость с Mobile). Вхождения отдаются с `recurring_event_id`,
+  `original_start_at`, `is_recurring` и id `<event-id>@<epoch-ms>`.
+- **Проверка**: jest **164/164**, `tsc`, ESLint и `nest build` — чисто; живой
+  smoke на backend — серия раскрывается и пагинируется, timezone сохраняется.
+
+### Этап 7 — повторяющиеся события (Фаза 7.2) ✅
+
+- **API**: `PATCH/DELETE /events/:id` принимают `scope` (`single`/`all`) и
+  `occurrence_at` в теле или query; для серии без scope — `400`. RRULE
+  валидируется через `rrule` (проверка `freq`), а не только длиной строки.
+- **Сервис**: `scope=all` меняет/удаляет серию (при DELETE — вместе с
+  исключениями), `scope=single` делает upsert `EventException` только по
+  переданным полям; история (`event_history`) пишется в той же транзакции,
+  push ставится для родительской серии.
+- **Синхронизация**: pull разбирает `EXDATE`/`RECURRENCE-ID` (включая
+  группировку `recurrences` у `node-ical`), push собирает один `.ics` с
+  `RRULE`, `EXDATE` и override-`VEVENT`; исключения синхронизируются даже при
+  неизменном ETag родителя, устаревшие synced-исключения удаляются.
+- **Конфликты**: при `forcePush` серии исключения передаются в сериализатор,
+  чтобы не потеряться при разрешении конфликта.
+- **Проверка**: jest **192/192** (29 suites), `tsc`, ESLint и `nest build` —
+  чисто. Radicale E2E: серия 4 дня → push RRULE; удаление одного вхождения →
+  EXDATE; перенос одного вхождения → RECURRENCE-ID; API вернул 3 вхождения,
+  удалённое отсутствует, перенесённое — с новым временем.

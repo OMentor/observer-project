@@ -125,6 +125,14 @@ export function DayDetailPanel({
                           >
                             {event.busy ? 'Занято' : event.title}
                           </span>
+                          {event.sync_status === 'conflict' && (
+                            <span
+                              role="img"
+                              aria-label="Конфликт синхронизации"
+                              title="Конфликт синхронизации"
+                              className="mt-1 size-2 shrink-0 rounded-full bg-danger"
+                            />
+                          )}
                         </button>
                       </li>
                     ))}

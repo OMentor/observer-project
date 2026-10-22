@@ -13,6 +13,7 @@ export const RealtimeEvents = {
   memberUpdated: 'member.updated',
   memberKicked: 'member.kicked',
   tokenActivated: 'token.activated',
+  syncConflict: 'sync.conflict',
 } as const;
 
 export type RealtimeEventName =
@@ -22,7 +23,8 @@ export type RealtimeEventName =
   | typeof RealtimeEvents.memberJoined
   | typeof RealtimeEvents.memberUpdated
   | typeof RealtimeEvents.memberKicked
-  | typeof RealtimeEvents.tokenActivated;
+  | typeof RealtimeEvents.tokenActivated
+  | typeof RealtimeEvents.syncConflict;
 
 export type EventRealtimePayload = {
   space_id: string;
@@ -52,11 +54,18 @@ export type KickedRealtimePayload = {
   actor_id?: string;
 };
 
+export type ConflictRealtimePayload = {
+  conflict_id: string;
+  event_id: string;
+  title: string;
+};
+
 export type RealtimePayload =
   | EventRealtimePayload
   | MemberRealtimePayload
   | TokenRealtimePayload
-  | KickedRealtimePayload;
+  | KickedRealtimePayload
+  | ConflictRealtimePayload;
 
 export type RealtimeMessage = {
   event: RealtimeEventName;
@@ -73,6 +82,7 @@ const BRCAST: RealtimeEventName[] = [
   RealtimeEvents.memberUpdated,
   RealtimeEvents.memberKicked,
   RealtimeEvents.tokenActivated,
+  RealtimeEvents.syncConflict,
 ];
 
 let socket: Socket | null = null;

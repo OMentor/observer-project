@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { SpacesModule } from '../spaces/spaces.module';
+import { RealtimeBridge } from './realtime-bridge.service';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
 
@@ -16,7 +17,7 @@ import { RealtimeService } from './realtime.service';
       }),
     }),
   ],
-  providers: [RealtimeGateway, RealtimeService],
+  providers: [RealtimeGateway, RealtimeService, RealtimeBridge],
   exports: [RealtimeService, RealtimeGateway],
 })
 export class RealtimeModule {}

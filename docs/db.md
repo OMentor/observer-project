@@ -11,6 +11,7 @@
 | `spaces` | Пространства (контейнер для группы). Мягкое удаление |
 | `sources` | Источники (календари) внутри пространства: имя, цвет, `visibility` |
 | `events` | События: `start_at`/`end_at` (UTC), `timezone`, `all_day`, `rrule`, `recurrence_parent_id` |
+| `event_exceptions` | Изменённые/удалённые вхождения серии: `occurrence_at`, override-поля, `external_etag`, `sync_status` |
 | `tokens` | Одноразовые приглашения: `token_hash`, `preset`, срок, отзыв |
 | `space_members` | Участники пространства с пресетом |
 | `event_history` | Аудит: `action`, `old_data`, `new_data` (JSON) |
@@ -22,8 +23,9 @@
 ## Проектные решения (сверх ТЗ)
 
 1. **Повторяющиеся события.** Добавлены `rrule` (строка iCalendar RRULE),
-   `recurrence_parent_id` (ссылка на «родителя» серии) и `recurrence_exceptions`
-   (JSON со списком переопределённых вхождений).
+   `recurrence_parent_id` (ссылка на «родителя» серии) и таблица
+   `event_exceptions` для переопределённых и удалённых вхождений
+   (`UNIQUE(event_id, occurrence_at)`, каскадное удаление).
 2. **Часовые пояса.** Время хранится в UTC; на событии и пользователе есть IANA
    `timezone` для корректного отображения и синхронизации.
 3. **Приватные источники.** У `sources` есть `owner_id` (nullable) и `visibility`

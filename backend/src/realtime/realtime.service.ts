@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Event as CalendarEvent, Preset } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { maskEvent } from '../events/event-mask';
+import { RealtimeBridge } from './realtime-bridge.service';
 import { RealtimeGateway } from './realtime.gateway';
 import { EventAction, RealtimeEvents } from './realtime.events';
 
@@ -10,11 +11,21 @@ export interface SourceRef {
   visibility: 'SHARED' | 'PRIVATE' | string;
 }
 
+/** Полезная нагрузка события `sync.conflict`. */
+export interface ConflictPayload {
+  conflict_id: string;
+  event_id: string;
+  title: string;
+}
+
 @Injectable()
 export class RealtimeService {
+  private readonly logger = new Logger(RealtimeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: RealtimeGateway,
+    private readonly bridge: RealtimeBridge,
   ) {}
 
   async eventChanged(
@@ -90,6 +101,25 @@ export class RealtimeService {
       preset,
       actor_id: userId,
     });
+  }
+
+  /**
+   * Уведомляет владельца подключения о новом конфликте синхронизации.
+   *
+   * Вызывается из воркера, поэтому событие идёт через Redis-шину
+   * (`RealtimeBridge`), а не напрямую в gateway. Доставка — best-effort.
+   */
+  async conflictCreated(
+    userId: string,
+    payload: ConflictPayload,
+  ): Promise<void> {
+    try {
+      await this.bridge.publish(userId, RealtimeEvents.syncConflict, payload);
+    } catch (error) {
+      this.logger.warn(
+        `Не удалось опубликовать sync.conflict: ${(error as Error).message}`,
+      );
+    }
   }
 
   private async resolveTargets(spaceId: string): Promise<Map<string, Preset>> {

@@ -3,11 +3,13 @@ import { EventsService } from './events.service';
 import { EventsController } from './events.controller';
 import { SpacesModule } from '../spaces/spaces.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { SyncQueueModule } from '../sync/queue/sync-queue.module';
+import { RecurrenceService } from './recurrence.service';
 
 @Module({
-  imports: [SpacesModule, RealtimeModule],
+  imports: [SpacesModule, RealtimeModule, SyncQueueModule],
   controllers: [EventsController],
-  providers: [EventsService],
+  providers: [EventsService, RecurrenceService],
   exports: [EventsService],
 })
 export class EventsModule {}

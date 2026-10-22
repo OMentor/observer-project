@@ -123,18 +123,21 @@ class _ToastCardState extends ConsumerState<_ToastCard> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.x2),
-                IconButton(
-                  onPressed: () =>
-                      ref.read(toastProvider.notifier).dismiss(toast.id),
-                  icon: const Icon(Icons.close, size: 16),
-                  color: c.textMuted,
-                  tooltip: 'Закрыть',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 24,
-                    minHeight: 24,
+                Semantics(
+                  label: 'Закрыть',
+                  button: true,
+                  child: IconButton(
+                    onPressed: () =>
+                        ref.read(toastProvider.notifier).dismiss(toast.id),
+                    icon: const Icon(Icons.close, size: 16),
+                    color: c.textMuted,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 24,
+                      minHeight: 24,
+                    ),
+                    splashRadius: 16,
                   ),
-                  splashRadius: 16,
                 ),
               ],
             ),

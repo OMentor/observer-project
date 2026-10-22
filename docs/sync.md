@@ -1,6 +1,6 @@
 # Синхронизация с внешними календарями
 
-Версия: 1.1 (19.10.2026).
+Версия: 1.2 (19.10.2026).
 Область: Этап 6 MVP. CalDAV-провайдеры (Яндекс, Mail.ru). Apple iCloud отложен.
 Связанные документы: `Проект.txt` §6.8, §12; `docs/api.md`; `docs/legal-sync-draft.md`.
 
@@ -208,6 +208,38 @@ auto-resolve по «последнее побеждает». Если в пре�
 - **Mobile**: бейдж на иконке календаря, экран «Конфликты синхронизации» в
   профиле.
 
+#### 4.4.1. API разрешения (Фаза 4)
+
+| Метод | Endpoint | Назначение |
+|-------|----------|------------|
+| `GET` | `/sync/conflicts` | Неразрешённые конфликты пользователя (фильтры `space_id`, `event_id`, `connection_id`; пагинация `limit`/`offset`) |
+| `GET` | `/sync/conflicts/:id` | Один конфликт с полными `local_data`/`external_data` |
+| `POST` | `/sync/conflicts/:id/resolve` | Тело `{ resolution: 'local' \| 'external' \| 'merged', merged_data? }` |
+
+Снимки полей — snake_case (`title`, `description`, `start_at`, `end_at`,
+`all_day`, `timezone`, `location`, `rrule`), даты — ISO-строки.
+
+| Ветка | Поля события | ETag | Запись наружу |
+|-------|--------------|------|----------------|
+| `local` | текущие локальные | новый ETag ответа | `forcePush` (безусловный PUT) |
+| `external` | из `external_data` | `= conflict.external_etag` | нет |
+| `merged` | `{ ...local_data, ...merged_data }` | новый ETag ответа | `forcePush` |
+
+- `merged_data` — частичное объединение: незаданные поля берутся из локальной
+  версии; `description`/`location` могут быть явно `null` (очистка).
+- `external_data` заполняется **в момент конфликта** снимком внешней версии
+  (best-effort pull). Если снимка нет — `resolve('external')` → `500`.
+- Транзакция: `Event` и `SyncConflict` фиксируются вместе. `forcePush`
+  выполняется **вне** транзакции: при ошибке (сеть/провайдер) → `503`, конфликт
+  остаётся неразрешённым, событие не меняется.
+- `forcePush` использует **безусловный PUT** (без `If-Match`): `If-Match: *`
+  не поддержан (Radicale трактует `*` как обычный ETag → `412`); при
+  отсутствии объекта он создаётся заново (`If-None-Match: *`).
+- Новый конфликт рассылается как событие `sync.conflict` через Redis-шину
+  (воркер → API → комната `user:<id>`), т.к. push выполняется в отдельном
+  процессе-воркере без WebSocket-сервера.
+
+
 ### 4.5. Приоритет источников
 
 Если пользователь связал несколько источников с одним внешним календарём —
@@ -233,16 +265,26 @@ auto-resolve по «последнее побеждает». Если в пре�
 
 ### 5.2. Первичный pull
 
-Правило: локальные события **не перезаписываются**.
+Правило: локальные события **не перезаписываются**, дедупликация — по ETag.
 
-- Для каждого внешнего события: если `external_id` уже есть у нас в этом
-  источнике — пропускаем. Если нет — создаём локальное событие с
-  `external_id`, `external_provider`, `sync_status='synced'`.
-- События, которые есть у нас, но нет во внешнем (и `external_id IS NULL`) —
-  остаются как `local`, будут запушены в следующем push-цикле.
+- Полная выборка календаря (`fetchCalendarObjects`); каждый объект парсится
+  iCal-парсером (`parseIcalEvent`).
+- Если `external_id` (UID) уже есть в этом источнике и `external_etag`
+  совпадает — пропускаем (идемпотентность).
+- Если ETag изменился — обновляем поля события (`sync_status='synced'`).
+- Если события нет — создаём с `external_id`, `external_provider`,
+  `external_etag`, `sync_status='synced'`.
+- События с `external_id`, которых нет во внешнем ответе, помечаются
+  удалёнными (`deleted_at`). Локальные (`external_id IS NULL`) не трогаются —
+  будут запушены в push-цикле.
 
 Причина: пользователь мог создать события в «Плетении» до подключения. Они
 не должны «пропасть» только потому, что их нет в новом календаре.
+
+> Реализация Фазы 2 (MVP): pull — **полная выборка**. Инкремент по `syncToken`
+> (WebDAV `sync-collection`) отложен до Фазы 6: tsdav требует
+> `collection.objectMultiGet`, а токен в схеме хранится на подключении, а не
+> на календаре (§3.1). Идемпотентность обеспечивается сравнением ETag.
 
 ### 5.3. Отключение синхронизации
 
@@ -311,8 +353,8 @@ N событий», пользователь решает: удалить ста
 | `INTERVAL>1` (каждый второй…) | ✅ |
 | `COUNT` / `UNTIL` | ✅ |
 | `BYDAY=MO,WE,FR` (несколько дней) | ⚠️ отображение read-only |
-| `EXDATE` (исключения) | ⚠️ отображение read-only |
-| `RECURRENCE-ID` (изменение одного вхождения) | ⚠️ отображение read-only |
+| `EXDATE` (исключения) | ✅ создание через `scope=single` DELETE |
+| `RECURRENCE-ID` (изменение одного вхождения) | ✅ создание/редактирование через `scope=single` PATCH |
 | Комбинации `BYSETPOS`, `BYMONTH`, `BYYEARDAY` | ⚠️ отображение read-only |
 
 ### 6.2. Принцип «отображать умеем всё, создавать — только простое»
@@ -329,9 +371,11 @@ N событий», пользователь решает: удалить ста
 
 ### 6.3. Редактирование серии
 
-В MVP — только два сценария:
+В MVP — три сценария:
 
-- «Вся серия» — изменение применяется ко всем вхождениям.
+- «Вся серия» (`scope=all`) — изменение применяется ко всем вхождениям.
+- «Только это вхождение» (`scope=single`) — создаётся/обновляется
+  `EventException` для `occurrence_at`; остальные вхождения не меняются.
 - «Отмена» — без изменений.
 
 Сценарий «это и все будущие» — вне scope MVP, добавляется в Этапе 7 (полный
@@ -339,13 +383,46 @@ RRULE).
 
 ### 6.4. Развёртывание серии
 
-Pull получает одно событие с RRULE. В локальной БД хранится одно
-событие. При отображении в календаре — развёртывается в виртуальные экземпляры
-для видимого диапазона (месяц/квартал).
+Pull получает одно событие с RRULE. В локальной БД хранится одно событие
+(родитель). Backend разворачивает серию для запрошенного диапазона `from`/`to`
+и возвращает виртуальные вхождения вместе с обычными событиями; клиенты
+дополнительно ничего не разворачивают.
 
-Библиотека: `rrule` (npm). Для каждого вхождения — `recurrence_id`
-(виртуальный, не хранится в БД). При клике на виртуальное вхождение — открывается
-форма редактирования серии (см. §6.3).
+Библиотека: `rrule` (npm). Вхождения не хранятся в БД, но их изменения и
+исключения — хранятся в `event_exceptions` (`event_id`, `occurrence_at`,
+`is_deleted`, override-поля, `external_etag`, `sync_status`). Для каждого
+вхождения возвращаются `recurring_event_id`, `original_start_at`
+(RECURRENCE-ID) и `is_recurring`; `id` вхождения —
+`<event-id>@<original-start-epoch-ms>`. При клике на вхождение — открывается
+форма редактирования серии или вхождения (см. §6.3).
+
+### 6.5. API вхождений (v1.2, Этап 7.2)
+
+Для события с `rrule != null` методы `PATCH /events/:id` и
+`DELETE /events/:id` требуют `scope` (`single`/`all`). Без `scope` — `400`.
+`scope` и `occurrence_at` принимаются в теле (`PATCH`) или в query
+(`PATCH`/`DELETE`).
+
+| Операция | Параметры | Поведение |
+|----------|-----------|-----------|
+| `PATCH` | `scope=all` | Обновляет родителя; исключения остаются |
+| `PATCH` | `scope=single`, `occurrence_at` | Upsert `EventException` (`is_deleted=false`) только переданных полей; родитель не меняется |
+| `DELETE` | `scope=all` | Soft-delete родителя + удаление всех его исключений |
+| `DELETE` | `scope=single`, `occurrence_at` | Upsert `EventException` с `is_deleted=true` |
+| `PATCH`/`DELETE` | событие без `rrule` | `scope` игнорируется, обычная операция |
+
+- `occurrence_at` — **исходное** время вхождения (RECURRENCE-ID), а не
+  перенесённое; при переносе меняются `start_at`/`end_at` исключения.
+- Upsert исключения и запись `event_history` выполняются одной транзакцией.
+- Push ставится для родительской серии: `ical-serializer` собирает один
+  `.ics` с `RRULE`, `EXDATE` и отдельными `VEVENT` с тем же `UID` и
+  `RECURRENCE-ID`. Повторный push серии не создаёт дублей.
+- Pull: `EXDATE` → `is_deleted=true`; `RECURRENCE-ID` → override;
+  override приоритетнее `EXDATE`; устаревшие synced-исключения удаляются,
+  локальные (`pending`) сохраняются. Исключения синхронизируются даже при
+  неизменном ETag родителя.
+- Ограничение: редактирование сложных RRULE (`BYSETPOS`, `BYMONTH`,
+  `BYYEARDAY`, несколько `BYDAY`) по-прежнему read-only.
 
 ---
 
@@ -358,7 +435,7 @@ Pull получает одно событие с RRULE. В локальной Б
 | CalDAV URL | `https://caldav.yandex.ru` |
 | Аутентификация | Basic, пароль приложения (создаётся в `passport.yandex.ru` → «Пароли приложений») |
 | Поддержка sync-token | Частичная (WebDAV sync-collection) |
-| Особенности | Ограничение на размер PROPFIND-ответа; рекомендуется `Depth: 1` |
+| Особенности | Ограничение на размер PROPFIND-ответа; рекомендуется `Depth: 1`; отправлять явный `User-Agent` (иначе возможен 403) |
 
 ### 7.2. Mail.ru
 
@@ -461,10 +538,24 @@ credentials = пользователи должны переподключить
 
 ### 11.1. Unit
 
-- `crypto.spec.ts` — шифрование/расшифровка (см. Фаза 1).
-- `caldav.provider.spec.ts` — `listCalendars` с MSW-моком; парсинг ответа.
-- `conflict.resolver.spec.ts` — все 9 строк таблицы §4.3.
-- `rrule.spec.ts` — развёртывание простых правил, read-only сложных.
+- `crypto.spec.ts` — шифрование/расшифровка (Фаза 1).
+- `caldav.provider.spec.ts` — `listCalendars`, `pull`, `push`/`delete`,
+  `forcePush` с мок-`DavClient` (Фазы 2–4).
+- `ical-parser.spec.ts` — парсинг VEVENT, all-day (`VALUE=DATE`), нормализация
+  `Etc/UTC` → `UTC` (Фаза 2).
+- `pull.service.spec.ts` — create/update/skip-по-ETag/delete, статусы (Фаза 2).
+- `ical-serializer.spec.ts` — VEVENT, all-day `VALUE=DATE`, UID, описание/локация
+  (Фаза 3).
+- `push.service.spec.ts` — create/update/delete, конфликт (без дублей), снимок
+  внешней версии, уведомление, retry (Фазы 3–4).
+- `links.service.spec.ts`, `sync.controller.spec.ts` — link/unlink/force (Фаза 2).
+- `provider.factory.spec.ts`, `connections.service.spec.ts` — Фаза 1.
+- `conflict-resolver.service.spec.ts` — ветки `local`/`external`/`merged`,
+  403/409/500/503 (Фаза 4).
+- `conflicts.controller.spec.ts` — делегирование `list`/`get`/`resolve` (Фаза 4).
+- `realtime.service.spec.ts` — `conflictCreated` → публикация в Redis-шину
+  (Фаза 4).
+- `rrule.spec.ts` — развёртывание простых правил, read-only сложных (Фаза 6).
 
 ### 11.2. Integration
 
@@ -494,6 +585,152 @@ Playwright: подключение → связывание → событие �
 3. **Автомерж дубликатов** при смене провайдера (§5.5) — вне scope. UX-решение
    «показать и дать пользователю решить» принято, но конкретный UI не
    спроектирован.
+4. **Инкрементальный pull по `syncToken`** — отложен до Фазы 6 (см. §5.2).
+   Нужно: привязать `objectMultiGet` к объекту календаря tsdav либо хранить
+   `syncToken` на `SourceExternalMap`, а не на `ExternalConnection`.
+
+---
+
+## 13. Статус реализации (Этап 6)
+
+| Фаза | Содержание | Статус |
+|------|------------|--------|
+| 1 | Подключения CalDAV + `listCalendars` | ✅ закрыта (Radicale + Яндекс) |
+| 2 | Pull: iCal-парсер, ETag-diff, link, воркер | ✅ реализовано |
+| 3 | Push: сериализация iCal, create/update/delete, конфликты | ✅ реализовано |
+| 4.1 | Backend: API конфликтов + `ConflictResolverService` + Redis-шина | ✅ реализовано |
+| 4.2 | Web UI: список, модалка diff, индикатор | ✅ реализовано |
+| 4.3 | Mobile UI: список, экран diff/merge, бейдж | ✅ реализовано |
+| 4.4 | E2E полного цикла «конфликт → разрешение» | ✅ закрыта (Mobile, emulator) |
+
+**Фаза 2 — детали:**
+- Парсер: `node-ical`, нормализация all-day → UTC-полночь, `Etc/UTC` → `UTC`.
+- `SyncProvider`: `pull(calendarId) → PullResult { events }`, где
+  `RemoteEvent { uid, etag, ical }`; `push`/`delete` — заглушки (`Phase 3`).
+- API: `POST /sources/:id/link`, `DELETE /sources/:id/link`,
+  `POST /sync/connections/:id/force` (202, по одной задаче на `SourceExternalMap`).
+- Воркер: BullMQ, очередь `sync`, handler `pull` инъектится через
+  `app.get(PullService)` (не `@nestjs/bullmq`).
+- Проверено end-to-end на локальном Radicale: create → skip (идемпотентно по
+  ETag) → update → delete через реальные очередь и воркер.
+- Интеграционный тест против реального Яндекса: `listCalendars` 207 (Фаза 1).
+
+**Фаза 3 — детали:**
+- `ical-serializer.ts` (`ical-generator`): VEVENT в UTC, `UID = external_id ?? id`,
+  all-day → `VALUE=DATE`, `lastModified = updated_at`.
+- `SyncProvider.push(calendarId, event)`: `etag === null` → создание
+  (`If-None-Match: *`, имя `${uid}.ics`), иначе обновление (`If-Match: etag`,
+  объект ищется по UID). Возвращает актуальный ETag (из заголовка ответа, при
+  отсутствии — повторный PROPFIND). `delete(calendarId, uid)` находит объект по
+  UID и удаляет; отсутствие — не ошибка.
+- Конфликт: HTTP **412**/404 → `SyncConflictError` → `PushService` пишет
+  `SyncConflict` (без дублей) и `Event.sync_status = 'conflict'`. Транзиентные
+  ошибки пробрасываются для retry (3 попытки, backoff 5 → 10 → 20 сек).
+- Триггеры: `EventsService.create/update/remove` ставят push-задачу
+  (`SyncQueueService.enqueuePush`), если источник связан внешне и направление
+  `both`/`out`. Задача выносится в отдельный `SyncQueueModule` (без циклов
+  зависимостей между `EventsModule` и `SyncModule`).
+- Проверено end-to-end на Radicale: create/update/delete отражаются во внешнем
+  календаре; смоделированный конфликт (правка снаружи + локальная правка) →
+  `SyncConflict`, внешний объект не перезаписан.
+
+**Фаза 4.1 — детали:**
+- DTO (Zod, snake_case): `list-conflicts.query.ts`, `resolve-conflict.dto.ts`
+  (`discriminatedUnion` по `resolution`).
+- `ConflictResolverService` — `list`/`get`/`resolve`; ветки `local`/`external`/
+  `merged` (см. §4.4.1); запись `Event`+`SyncConflict` одной Prisma-транзакцией.
+- `CalDavProvider.forcePush(calendarId, uid)` — **безусловный PUT** (без
+  `If-Match`); при отсутствии объекта — создание (`If-None-Match: *`).
+  `DavClient.updateCalendarObject` принимает `etag: string | null`.
+- `PushService.recordConflict` теперь сохраняет снимок внешней версии
+  (`external_data` + актуальный `external_etag`) через `provider.pull`, а не
+  пустой объект; конфликт уведомляется событием `sync.conflict`.
+- `RealtimeBridge` (`realtime-bridge.service.ts`) — Redis pub/sub: воркер
+  публикует `{ userId, event, payload }` в канал `pletenie:realtime`, API
+  подписан и рассылает в комнату `user:<id>`.
+- Эндпоинты: `ConflictsController` (`GET /sync/conflicts`,
+  `GET /sync/conflicts/:id`, `POST /sync/conflicts/:id/resolve`).
+- Проверка: `tsc` 0, `eslint` 0, `jest` 147/147, `nest build` 0.
+
+**Отклонения/известные ограничения:**
+- Воркер — чистый `bullmq` (без `@nestjs/bullmq`).
+- Radicale — только для dev/personal (не публичный провайдер).
+- `ENCRYPTION_KEY` — в `backend/.env`, не в KMS.
+- Инкремент `syncToken` — отложен до Фазы 6 (full-fetch + ETag).
+- Поиск внешнего объекта по UID при push делает полную выборку календаря —
+  для MVP приемлемо; при больших календарях вынести хранимый URL в схему.
+- `DELETE /sources/:id/link` пока не переводит `synced`-события в `local`
+  (§5.3) — вынести в Фазу 4 (UI) / отдельную задачу.
+- `external_data` снимок делается best-effort в момент конфликта; если
+  провайдер недоступен, снимок пуст и ветка `resolve('external')` недоступна
+  (500) — пользователь может разрешить вручную (`local`/`merged`).
+
+**Фаза 4.2 — детали:**
+- Web: `/sync/conflicts`, карточки с diff, модалка «наша/внешняя/объединить»,
+  индикатор в шапке, красные точки в календаре и панели дня; realtime
+  `sync.conflict` → toast + инвалидация.
+- Проверка: `tsc` 0, `oxlint` 0, `vitest` 86/86, `vite build` 0,
+  Playwright 3/3 (`web/e2e/sync-conflicts.spec.ts`, Radicale).
+
+**Фаза 4.3 — детали:**
+- Mobile: `features/sync/` — список конфликтов, экран diff/merge, карточка;
+  бейдж на вкладке «Календарь», строка в профиле, красная точка в
+  `AppEventTile`; realtime `sync.conflict` инвалидирует список.
+- Конфликты доступны только онлайн; оффлайн — состояние «Нет соединения».
+- Проверка: `flutter analyze` 0, `flutter test` 107/107 (15 новых тестов,
+  2 golden: `conflict_card_dark/light.png`).
+
+**Фаза 4.4 — детали:**
+- `backend/scripts/seed-e2e.ts` — пользователь, пространство, источник,
+  dummy-подключение + маппинг, событие и `SyncConflict` с полными снимками;
+  печатает JSON с `email`/`password`/`conflictId` для прогона.
+- `backend/scripts/trigger-conflict.ts --email=…` — создаёт новый конфликт и
+  публикует `sync.conflict` в Redis-канал `pletenie:realtime`.
+- `mobile/integration_test/conflict_external_test.dart` — вход, бейдж,
+  профиль → «Конфликты синхронизации», список, экран diff, разрешение
+  «Внешняя версия», ожидание пустого состояния. Запуск:
+  `flutter test integration_test/conflict_external_test.dart -d emulator-5554
+  --dart-define=API_URL=http://10.0.2.2:3000 --dart-define=E2E_EMAIL=…
+  --dart-define=E2E_PASS=password123`.
+- Тест поднимает приложение без `NotificationService.init()` (иначе системный
+  диалог разрешений блокирует прогон), через `ProviderScope` +
+  `sessionManagerProvider.overrideWithValue`.
+- Прогон на `emulator-5554`: **1/1 PASS**. Попутно исправлен `AppToastHost`:
+  `tooltip` у кнопки закрытия требует `Overlay` (его нет над `MaterialApp`),
+  из-за чего debug-сборка падала при toast «Соединение восстановлено».
+- Realtime-триггер с хоста внутри integration-теста недоступен: `Process.run`
+  выполняется на устройстве; сценарий покрыт seed/trigger-скриптами и
+  widget-тестами.
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.
+
+---
+
+## 14. Статус реализации (Этап 7.2)
+
+| Подфаза | Содержание | Статус |
+|---------|------------|--------|
+| 7.2.1 | API: `scope`, `occurrence_at`, валидация RRULE | ✅ реализовано |
+| 7.2.2 | Сервис: single/all для PATCH/DELETE, транзакции, push серии | ✅ реализовано |
+| 7.2.3 | Pull/push `EXDATE` и `RECURRENCE-ID` | ✅ реализовано |
+| 7.2.4 | Документация | ✅ обновлена |
+
+**Детали:**
+- `parseIcalSeries` (`ical-parser.ts`) разворачивает группировку `node-ical`
+  по UID, нормализует RRULE (без `DTSTART`), собирает `EXDATE` и
+  `RECURRENCE-ID`, дедуплицирует повторы.
+- `EventException` — источник истины для вхождений; при pull обновляется даже
+  без смены ETag родителя.
+- `ical-serializer.ts` добавляет `EXDATE` вручную после строки `RRULE`
+  (prompt `ical-generator` не умеет произвольный RRULE + EXDATE) и отдельные
+  `VEVENT` для override с общим `UID` и `RECURRENCE-ID`.
+- `ConflictResolverService` при force-push серии передаёт исключения, чтобы
+  не потерять их при разрешении конфликта.
+- Проверка: `tsc` 0, ESLint 0, `nest build` 0, jest **192/192**.
+- Radicale E2E: серия `FREQ=DAILY;COUNT=4` → push `RRULE`; `DELETE
+  scope=single` → `EXDATE` во внешнем `.ics`; `PATCH scope=single` →
+  `RECURRENCE-ID` + изменённый `SUMMARY`; API-диапазон вернул 3 вхождения
+  (удалённое отсутствует, перенесённое — с новым временем).
+- Ограничение: E2E выполнен на локальном Radicale; Яндекс/Mail.ru не
+  затрагивались.

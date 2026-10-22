@@ -21,6 +21,8 @@ import 'features/members/members_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/spaces/space_screen.dart';
 import 'features/spaces/spaces_screen.dart';
+import 'features/sync/conflict_resolve_screen.dart';
+import 'features/sync/conflicts_screen.dart';
 import 'features/tokens/tokens_screen.dart';
 import 'shared/toast.dart';
 import 'shared/widgets/home_shell.dart';
@@ -110,6 +112,16 @@ final eventHistoryProvider =
       ref.read(apiClientProvider).fetchEventHistory(eventId),
 );
 
+final conflictsProvider = FutureProvider<List<ConflictItem>>((ref) async {
+  final page = await ref.read(apiClientProvider).fetchConflicts();
+  return page.items;
+});
+
+final conflictProvider =
+    FutureProvider.autoDispose.family<ConflictItem, String>(
+  (ref, id) => ref.read(apiClientProvider).fetchConflict(id),
+);
+
 final spacePresetProvider = FutureProvider.family<String?, String>(
   (ref, spaceId) async {
     final user = ref.watch(authControllerProvider).asData?.value;
@@ -158,7 +170,16 @@ class RealtimeController extends Notifier<RealtimeStatus> {
   void _onEvent(RealtimeEvent event) {
     final me = ref.read(authControllerProvider).asData?.value?.id;
     final name = event.name;
-    if (name.startsWith('event.')) {
+    if (name == 'sync.conflict') {
+      ref.invalidate(conflictsProvider);
+      ref.invalidate(allEventsProvider);
+      final title = event.payload['title'] as String?;
+      _notify(
+        title == null || title.isEmpty
+            ? 'Конфликт синхронизации'
+            : 'Конфликт синхронизации: «$title»',
+      );
+    } else if (name.startsWith('event.')) {
       ref.invalidate(allEventsProvider);
       _notifyEvent(name, event.payload, me);
     } else if (name.startsWith('member.') || name == 'token.activated') {
@@ -294,6 +315,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/spaces/:id/members',
             builder: (_, state) =>
                 MembersScreen(spaceId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/sync/conflicts',
+            builder: (_, _) => const ConflictsScreen(),
+          ),
+          GoRoute(
+            path: '/sync/conflicts/:id',
+            builder: (_, state) =>
+                ConflictResolveScreen(conflictId: state.pathParameters['id']!),
           ),
           GoRoute(
             path: '/activate/:token',
