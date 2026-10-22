@@ -353,8 +353,8 @@ N событий», пользователь решает: удалить ста
 | `INTERVAL>1` (каждый второй…) | ✅ |
 | `COUNT` / `UNTIL` | ✅ |
 | `BYDAY=MO,WE,FR` (несколько дней) | ⚠️ отображение read-only |
-| `EXDATE` (исключения) | ⚠️ отображение read-only |
-| `RECURRENCE-ID` (изменение одного вхождения) | ⚠️ отображение read-only |
+| `EXDATE` (исключения) | ✅ создание через `scope=single` DELETE |
+| `RECURRENCE-ID` (изменение одного вхождения) | ✅ создание/редактирование через `scope=single` PATCH |
 | Комбинации `BYSETPOS`, `BYMONTH`, `BYYEARDAY` | ⚠️ отображение read-only |
 
 ### 6.2. Принцип «отображать умеем всё, создавать — только простое»
@@ -371,9 +371,11 @@ N событий», пользователь решает: удалить ста
 
 ### 6.3. Редактирование серии
 
-В MVP — только два сценария:
+В MVP — три сценария:
 
-- «Вся серия» — изменение применяется ко всем вхождениям.
+- «Вся серия» (`scope=all`) — изменение применяется ко всем вхождениям.
+- «Только это вхождение» (`scope=single`) — создаётся/обновляется
+  `EventException` для `occurrence_at`; остальные вхождения не меняются.
 - «Отмена» — без изменений.
 
 Сценарий «это и все будущие» — вне scope MVP, добавляется в Этапе 7 (полный
@@ -393,6 +395,34 @@ Pull получает одно событие с RRULE. В локальной Б
 (RECURRENCE-ID) и `is_recurring`; `id` вхождения —
 `<event-id>@<original-start-epoch-ms>`. При клике на вхождение — открывается
 форма редактирования серии или вхождения (см. §6.3).
+
+### 6.5. API вхождений (v1.2, Этап 7.2)
+
+Для события с `rrule != null` методы `PATCH /events/:id` и
+`DELETE /events/:id` требуют `scope` (`single`/`all`). Без `scope` — `400`.
+`scope` и `occurrence_at` принимаются в теле (`PATCH`) или в query
+(`PATCH`/`DELETE`).
+
+| Операция | Параметры | Поведение |
+|----------|-----------|-----------|
+| `PATCH` | `scope=all` | Обновляет родителя; исключения остаются |
+| `PATCH` | `scope=single`, `occurrence_at` | Upsert `EventException` (`is_deleted=false`) только переданных полей; родитель не меняется |
+| `DELETE` | `scope=all` | Soft-delete родителя + удаление всех его исключений |
+| `DELETE` | `scope=single`, `occurrence_at` | Upsert `EventException` с `is_deleted=true` |
+| `PATCH`/`DELETE` | событие без `rrule` | `scope` игнорируется, обычная операция |
+
+- `occurrence_at` — **исходное** время вхождения (RECURRENCE-ID), а не
+  перенесённое; при переносе меняются `start_at`/`end_at` исключения.
+- Upsert исключения и запись `event_history` выполняются одной транзакцией.
+- Push ставится для родительской серии: `ical-serializer` собирает один
+  `.ics` с `RRULE`, `EXDATE` и отдельными `VEVENT` с тем же `UID` и
+  `RECURRENCE-ID`. Повторный push серии не создаёт дублей.
+- Pull: `EXDATE` → `is_deleted=true`; `RECURRENCE-ID` → override;
+  override приоритетнее `EXDATE`; устаревшие synced-исключения удаляются,
+  локальные (`pending`) сохраняются. Исключения синхронизируются даже при
+  неизменном ETag родителя.
+- Ограничение: редактирование сложных RRULE (`BYSETPOS`, `BYMONTH`,
+  `BYYEARDAY`, несколько `BYDAY`) по-прежнему read-only.
 
 ---
 
@@ -674,3 +704,33 @@ Playwright: подключение → связывание → событие �
 
 Документ обновляется по мере реализации Фаз 2–8. Изменения — отдельными PR
 с обновлением этой таблицы.
+
+---
+
+## 14. Статус реализации (Этап 7.2)
+
+| Подфаза | Содержание | Статус |
+|---------|------------|--------|
+| 7.2.1 | API: `scope`, `occurrence_at`, валидация RRULE | ✅ реализовано |
+| 7.2.2 | Сервис: single/all для PATCH/DELETE, транзакции, push серии | ✅ реализовано |
+| 7.2.3 | Pull/push `EXDATE` и `RECURRENCE-ID` | ✅ реализовано |
+| 7.2.4 | Документация | ✅ обновлена |
+
+**Детали:**
+- `parseIcalSeries` (`ical-parser.ts`) разворачивает группировку `node-ical`
+  по UID, нормализует RRULE (без `DTSTART`), собирает `EXDATE` и
+  `RECURRENCE-ID`, дедуплицирует повторы.
+- `EventException` — источник истины для вхождений; при pull обновляется даже
+  без смены ETag родителя.
+- `ical-serializer.ts` добавляет `EXDATE` вручную после строки `RRULE`
+  (prompt `ical-generator` не умеет произвольный RRULE + EXDATE) и отдельные
+  `VEVENT` для override с общим `UID` и `RECURRENCE-ID`.
+- `ConflictResolverService` при force-push серии передаёт исключения, чтобы
+  не потерять их при разрешении конфликта.
+- Проверка: `tsc` 0, ESLint 0, `nest build` 0, jest **192/192**.
+- Radicale E2E: серия `FREQ=DAILY;COUNT=4` → push `RRULE`; `DELETE
+  scope=single` → `EXDATE` во внешнем `.ics`; `PATCH scope=single` →
+  `RECURRENCE-ID` + изменённый `SUMMARY`; API-диапазон вернул 3 вхождения
+  (удалённое отсутствует, перенесённое — с новым временем).
+- Ограничение: E2E выполнен на локальном Radicale; Яндекс/Mail.ru не
+  затрагивались.

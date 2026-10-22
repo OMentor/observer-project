@@ -1,4 +1,32 @@
 import { z } from 'zod';
+import { RRule } from 'rrule';
+
+function isValidRrule(value: string | null | undefined): boolean {
+  if (!value) {
+    return true;
+  }
+  try {
+    const parsed = RRule.parseString(value);
+    return parsed.freq !== undefined && parsed.freq !== null;
+  } catch {
+    return false;
+  }
+}
+
+const rruleField = z.string().max(500).nullable().optional();
+
+function checkRrule(
+  data: { rrule?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (!isValidRrule(data.rrule)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rrule'],
+      message: 'Некорректное RRULE-правило',
+    });
+  }
+}
 
 export const createEventSchema = z
   .object({
@@ -9,8 +37,9 @@ export const createEventSchema = z
     all_day: z.boolean().optional(),
     timezone: z.string().min(1).max(64).optional(),
     location: z.string().max(300).optional(),
-    rrule: z.string().max(500).optional(),
+    rrule: rruleField,
   })
+  .superRefine(checkRrule)
   .refine((data) => data.end_at >= data.start_at, {
     message: 'Дата окончания раньше даты начала',
     path: ['end_at'],
@@ -25,13 +54,33 @@ export const updateEventSchema = z
     all_day: z.boolean().optional(),
     timezone: z.string().min(1).max(64).optional(),
     location: z.string().max(300).nullable().optional(),
-    rrule: z.string().max(500).nullable().optional(),
+    rrule: rruleField,
+    scope: z.enum(['single', 'all']).optional(),
+    occurrence_at: z.coerce.date().optional(),
   })
+  .superRefine(checkRrule)
   .refine(
     (data) =>
       !data.start_at || !data.end_at || data.end_at >= data.start_at,
     { message: 'Дата окончания раньше даты начала', path: ['end_at'] },
-  );
+  )
+  .refine((data) => data.scope !== 'single' || !!data.occurrence_at, {
+    message: 'occurrence_at обязателен при scope=single',
+    path: ['occurrence_at'],
+  });
+
+export const eventScopeSchema = z.object({
+  scope: z.enum(['single', 'all']).optional(),
+  occurrence_at: z.coerce.date().optional(),
+});
+
+export const deleteEventSchema = eventScopeSchema.refine(
+  (data) => data.scope !== 'single' || !!data.occurrence_at,
+  {
+    message: 'occurrence_at обязателен при scope=single',
+    path: ['occurrence_at'],
+  },
+);
 
 export const listEventsSchema = z.object({
   from: z.coerce.date().optional(),
@@ -51,5 +100,7 @@ export const listAllEventsSchema = z.object({
 
 export type CreateEventDto = z.infer<typeof createEventSchema>;
 export type UpdateEventDto = z.infer<typeof updateEventSchema>;
+export type EventScopeDto = z.infer<typeof eventScopeSchema>;
+export type DeleteEventDto = z.infer<typeof deleteEventSchema>;
 export type ListEventsDto = z.infer<typeof listEventsSchema>;
 export type ListAllEventsDto = z.infer<typeof listAllEventsSchema>;

@@ -142,10 +142,13 @@ export class ConflictResolverService {
         : this.fromEvent(event);
 
     const provider = this.factory.create(connection);
+    const exceptions = await this.prisma.eventException.findMany({
+      where: { event_id: event.id },
+    });
     const remote: RemoteEvent = {
       uid: event.external_id ?? event.id,
       etag: event.external_etag,
-      ical: serializeEvent({ ...event, ...toEventData(fields) }),
+      ical: serializeEvent({ ...event, ...toEventData(fields) }, exceptions),
     };
 
     let result: RemoteEvent;

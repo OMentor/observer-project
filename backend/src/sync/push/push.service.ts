@@ -77,10 +77,13 @@ export class PushService {
     }
 
     const isUpdate = event.external_id !== null;
+    const exceptions = await this.prisma.eventException.findMany({
+      where: { event_id: eventId },
+    });
     const remote: RemoteEvent = {
       uid: event.external_id ?? event.id,
       etag: isUpdate ? event.external_etag : null,
-      ical: serializeEvent(event),
+      ical: serializeEvent(event, exceptions),
     };
 
     await this.prisma.event.update({

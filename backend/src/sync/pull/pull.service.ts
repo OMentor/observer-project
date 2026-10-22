@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Event, ExternalProvider } from '@prisma/client';
+import { Event, ExternalProvider, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../../realtime/realtime.service';
 import { RealtimeEvents } from '../../realtime/realtime.events';
-import { parseIcalEvent } from '../ical/ical-parser';
+import { parseIcalSeries, ParsedSeries } from '../ical/ical-parser';
 import { ProviderFactory } from '../providers/provider.factory';
 import { PullResult } from '../providers/sync-provider.interface';
 
@@ -98,15 +98,17 @@ export class PullService {
     const remoteUids = new Set(result.events.map((event) => event.uid));
 
     for (const remote of result.events) {
-      const parsed = parseIcalEvent(remote.ical);
-      if (!parsed) {
+      const series = parseIcalSeries(remote.ical);
+      if (!series) {
         stats.skipped += 1;
         continue;
       }
+      const parsed = series.parent;
       const local = existingByUid.get(remote.uid);
       if (local) {
         // ETag совпадает и событие активно — изменений нет.
         if (local.external_etag === remote.etag && !local.deleted_at) {
+          await this.syncExceptions(local.id, series, remote.etag);
           stats.skipped += 1;
           continue;
         }
@@ -128,6 +130,7 @@ export class PullService {
             deleted_at: null,
           },
         });
+        await this.syncExceptions(event.id, series, remote.etag);
         stats.updated += 1;
         await this.realtime.eventChanged(
           RealtimeEvents.eventUpdated,
@@ -155,6 +158,7 @@ export class PullService {
             last_synced_at: new Date(),
           },
         });
+        await this.syncExceptions(event.id, series, remote.etag);
         existingByUid.set(remote.uid, event);
         stats.created += 1;
         await this.realtime.eventChanged(
@@ -188,5 +192,78 @@ export class PullService {
     }
 
     return stats;
+  }
+
+  private async syncExceptions(
+    eventId: string,
+    series: ParsedSeries,
+    etag: string | null,
+  ) {
+    const incoming = new Map<
+      number,
+      Omit<
+        Prisma.EventExceptionUncheckedCreateInput,
+        'id' | 'event_id' | 'occurrence_at'
+      >
+    >();
+    for (const exdate of series.exdates) {
+      incoming.set(exdate.getTime(), {
+        is_deleted: true,
+        title: null,
+        description: null,
+        start_at: null,
+        end_at: null,
+        all_day: null,
+        timezone: null,
+        location: null,
+        rrule: null,
+        external_etag: etag,
+        sync_status: 'synced',
+      });
+    }
+    for (const exception of series.exceptions) {
+      if (!exception.recurrenceId) {
+        continue;
+      }
+      incoming.set(exception.recurrenceId.getTime(), {
+        is_deleted: false,
+        title: exception.title,
+        description: exception.description,
+        start_at: exception.startAt,
+        end_at: exception.endAt,
+        all_day: exception.allDay,
+        timezone: exception.timezone,
+        location: exception.location,
+        rrule: exception.rrule,
+        external_etag: etag,
+        sync_status: 'synced',
+      });
+    }
+
+    for (const [time, data] of incoming) {
+      const occurrenceAt = new Date(time);
+      await this.prisma.eventException.upsert({
+        where: {
+          event_id_occurrence_at: {
+            event_id: eventId,
+            occurrence_at: occurrenceAt,
+          },
+        },
+        create: {
+          event_id: eventId,
+          occurrence_at: occurrenceAt,
+          ...data,
+        },
+        update: data,
+      });
+    }
+
+    await this.prisma.eventException.deleteMany({
+      where: {
+        event_id: eventId,
+        sync_status: 'synced',
+        occurrence_at: { notIn: [...incoming.keys()].map((time) => new Date(time)) },
+      },
+    });
   }
 }

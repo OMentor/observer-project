@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,6 +13,7 @@ import { SyncQueueService } from '../sync/queue/sync-queue.service';
 import { isEventMasked, maskEvent } from './event-mask';
 import {
   CreateEventDto,
+  EventScopeDto,
   ListAllEventsDto,
   ListEventsDto,
   UpdateEventDto,
@@ -296,6 +298,16 @@ export class EventsService {
       source,
     } = await this.loadWithAccess(userId, eventId);
     this.assertCanWrite(access, userId, current);
+
+    if (current.rrule && dto.scope !== 'all') {
+      if (dto.scope !== 'single') {
+        throw new BadRequestException(
+          'Для повторяющегося события укажите scope: single или all',
+        );
+      }
+      return this.updateOccurrence(userId, current, source, dto);
+    }
+
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
@@ -326,17 +338,39 @@ export class EventsService {
     return updated;
   }
 
-  async remove(userId: string, eventId: string) {
+  async remove(userId: string, eventId: string, query?: EventScopeDto) {
     const {
       event: current,
       access,
       source,
     } = await this.loadWithAccess(userId, eventId);
     this.assertCanWrite(access, userId, current);
-    await this.prisma.event.update({
-      where: { id: eventId },
-      data: { deleted_at: new Date() },
-    });
+
+    if (current.rrule && query?.scope !== 'all') {
+      if (query?.scope !== 'single') {
+        throw new BadRequestException(
+          'Для повторяющегося события укажите scope: single или all',
+        );
+      }
+      return this.removeOccurrence(userId, current, source, query);
+    }
+
+    if (current.rrule) {
+      await this.prisma.$transaction([
+        this.prisma.eventException.deleteMany({
+          where: { event_id: eventId },
+        }),
+        this.prisma.event.update({
+          where: { id: eventId },
+          data: { deleted_at: new Date() },
+        }),
+      ]);
+    } else {
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { deleted_at: new Date() },
+      });
+    }
     await this.writeHistory(
       eventId,
       userId,
@@ -364,6 +398,150 @@ export class EventsService {
       orderBy: { created_at: 'desc' },
       include: { user: { select: { id: true, name: true } } },
     });
+  }
+
+  private async updateOccurrence(
+    userId: string,
+    current: Event,
+    source: { space_id: string; visibility: string },
+    dto: UpdateEventDto,
+  ) {
+    const occurrenceAt = dto.occurrence_at as Date;
+    const override: {
+      is_deleted: boolean;
+      title?: string;
+      description?: string | null;
+      start_at?: Date;
+      end_at?: Date;
+      all_day?: boolean;
+      timezone?: string;
+      location?: string | null;
+    } = {
+      is_deleted: false,
+    };
+    const fields: string[] = [];
+
+    if (dto.title !== undefined) {
+      override.title = dto.title;
+      fields.push('title');
+    }
+    if (dto.description !== undefined) {
+      override.description = dto.description;
+      fields.push('description');
+    }
+    if (dto.start_at !== undefined) {
+      override.start_at = dto.start_at;
+      fields.push('start_at');
+    }
+    if (dto.end_at !== undefined) {
+      override.end_at = dto.end_at;
+      fields.push('end_at');
+    }
+    if (dto.all_day !== undefined) {
+      override.all_day = dto.all_day;
+      fields.push('all_day');
+    }
+    if (dto.timezone !== undefined) {
+      override.timezone = dto.timezone;
+      fields.push('timezone');
+    }
+    if (dto.location !== undefined) {
+      override.location = dto.location;
+      fields.push('location');
+    }
+
+    if (fields.length === 0) {
+      throw new BadRequestException('Нет полей для изменения вхождения');
+    }
+
+    const [exception] = await this.prisma.$transaction([
+      this.prisma.eventException.upsert({
+        where: {
+          event_id_occurrence_at: {
+            event_id: current.id,
+            occurrence_at: occurrenceAt,
+          },
+        },
+        create: {
+          event_id: current.id,
+          occurrence_at: occurrenceAt,
+          ...override,
+        },
+        update: override,
+      }),
+      this.prisma.eventHistory.create({
+        data: {
+          event_id: current.id,
+          user_id: userId,
+          action: 'UPDATED',
+          old_data: {
+            scope: 'single',
+            occurrence_at: occurrenceAt.toISOString(),
+          },
+          new_data: {
+            scope: 'single',
+            occurrence_at: occurrenceAt.toISOString(),
+            fields,
+          },
+        },
+      }),
+    ]);
+
+    await this.realtime.eventChanged(
+      RealtimeEvents.eventUpdated,
+      current,
+      source,
+      userId,
+    );
+    await this.maybeEnqueuePush(current.source_id, current.id);
+    return exception;
+  }
+
+  private async removeOccurrence(
+    userId: string,
+    current: Event,
+    source: { space_id: string; visibility: string },
+    query: EventScopeDto,
+  ) {
+    const occurrenceAt = query.occurrence_at as Date;
+
+    await this.prisma.$transaction([
+      this.prisma.eventException.upsert({
+        where: {
+          event_id_occurrence_at: {
+            event_id: current.id,
+            occurrence_at: occurrenceAt,
+          },
+        },
+        create: {
+          event_id: current.id,
+          occurrence_at: occurrenceAt,
+          is_deleted: true,
+        },
+        update: { is_deleted: true },
+      }),
+      this.prisma.eventHistory.create({
+        data: {
+          event_id: current.id,
+          user_id: userId,
+          action: 'DELETED',
+          old_data: {
+            scope: 'single',
+            occurrence_at: occurrenceAt.toISOString(),
+          },
+          new_data: undefined,
+        },
+      }),
+    ]);
+
+    await this.realtime.eventChanged(
+      RealtimeEvents.eventUpdated,
+      current,
+      source,
+      userId,
+    );
+    await this.maybeEnqueuePush(current.source_id, current.id);
+    return { success: true };
   }
 
   private async loadExceptions(events: Event[]) {

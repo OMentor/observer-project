@@ -1,8 +1,6 @@
-import ical, { VEvent } from 'node-ical';
+import ical, { RRule, VEvent } from 'node-ical';
 
-/** Нормализованное событие, извлечённое из iCalendar-полезной нагрузки. */
 export interface ParsedEvent {
-  /** UID события (`VEVENT.UID`). */
   uid: string;
   title: string;
   description: string | null;
@@ -10,13 +8,18 @@ export interface ParsedEvent {
   startAt: Date;
   endAt: Date;
   allDay: boolean;
-  /** TZID начала (или `UTC`, если не задан). */
   timezone: string;
-  /** RRULE в виде строки (`FREQ=...`) или `null`. */
   rrule: string | null;
+  recurrenceId: Date | null;
+  exdates: Date[];
 }
 
-/** Нормализует TZID: UTC-варианты приводим к `UTC`. */
+export interface ParsedSeries {
+  parent: ParsedEvent;
+  exceptions: ParsedEvent[];
+  exdates: Date[];
+}
+
 function normalizeTimezone(tz: string | undefined): string {
   if (!tz || tz === 'Etc/UTC' || tz === 'UTC' || tz === 'Z') {
     return 'UTC';
@@ -24,21 +27,12 @@ function normalizeTimezone(tz: string | undefined): string {
   return tz;
 }
 
-/**
- * node-ical парсит значения `VALUE=DATE` как полночь в локальной зоне процесса.
- * Для событий на весь день приводим дату к полуночи UTC по календарным
- * компонентам, чтобы результат не зависел от TZ сервера.
- */
 function toUtcMidnight(date: Date): Date {
   return new Date(
     Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
 }
 
-/**
- * node-ical возвращает текстовые свойства либо строкой, либо `{ val, params }`.
- * Приводим оба варианта к строке.
- */
 function asText(value: unknown): string | null {
   if (typeof value === 'string') {
     return value;
@@ -52,40 +46,106 @@ function asText(value: unknown): string | null {
   return null;
 }
 
-/**
- * Парсит первый `VEVENT` из iCalendar-строки.
- * Возвращает `null`, если события нет или оно некорректно.
- */
-export function parseIcalEvent(ics: string): ParsedEvent | null {
+function rruleText(rule: RRule | undefined): string | null {
+  if (!rule) {
+    return null;
+  }
+  const text = rule.toString();
+  const line = text
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.startsWith('RRULE:'));
+  return line ? line.slice('RRULE:'.length) : text.trim() || null;
+}
+
+function uniqueDates(dates: Date[]): Date[] {
+  const seen = new Set<number>();
+  return dates.filter((date) => {
+    const time = date.getTime();
+    if (seen.has(time)) {
+      return false;
+    }
+    seen.add(time);
+    return true;
+  });
+}
+
+function toParsedEvent(event: VEvent, fallbackUid: string): ParsedEvent | null {
+  const start = event.start;
+  if (!(start instanceof Date)) {
+    return null;
+  }
+  const allDay = event.datetype === 'date' || start.dateOnly === true;
+  let endAt = event.end instanceof Date ? event.end : start;
+  let startAt = start;
+  if (allDay) {
+    startAt = toUtcMidnight(startAt);
+    endAt = toUtcMidnight(endAt);
+  }
+  const recurrenceId =
+    event.recurrenceid instanceof Date
+      ? allDay
+        ? toUtcMidnight(event.recurrenceid)
+        : event.recurrenceid
+      : null;
+  const exdates = uniqueDates(
+    Object.values(event.exdate ?? {})
+      .filter((date): date is Date => date instanceof Date)
+      .map((date) => (allDay ? toUtcMidnight(date) : date)),
+  );
+  return {
+    uid: event.uid ?? fallbackUid,
+    title: asText(event.summary) ?? 'Без названия',
+    description: asText(event.description),
+    location: asText(event.location),
+    startAt,
+    endAt,
+    allDay,
+    timezone: normalizeTimezone(start.tz),
+    rrule: rruleText(event.rrule),
+    recurrenceId,
+    exdates,
+  };
+}
+
+export function parseIcalSeries(ics: string): ParsedSeries | null {
   const parsed = ical.sync.parseICS(ics);
+  let parent: ParsedEvent | null = null;
+  const overrides = new Map<number, ParsedEvent>();
+
   for (const key of Object.keys(parsed)) {
     const component = parsed[key];
     if (!component || component.type !== 'VEVENT') {
       continue;
     }
     const event = component as VEvent;
-    const start = event.start;
-    if (!(start instanceof Date)) {
-      continue;
+    const own = toParsedEvent(event, key);
+    if (own?.recurrenceId) {
+      overrides.set(own.recurrenceId.getTime(), own);
+    } else if (own && !parent) {
+      parent = own;
     }
-    const allDay = event.datetype === 'date' || start.dateOnly === true;
-    let endAt = event.end instanceof Date ? event.end : start;
-    let startAt = start;
-    if (allDay) {
-      startAt = toUtcMidnight(startAt);
-      endAt = toUtcMidnight(endAt);
+    for (const recurrence of Object.values(event.recurrences ?? {})) {
+      const override = toParsedEvent(recurrence as VEvent, event.uid ?? key);
+      if (override?.recurrenceId) {
+        overrides.set(override.recurrenceId.getTime(), override);
+      }
     }
-    return {
-      uid: event.uid ?? key,
-      title: asText(event.summary) ?? 'Без названия',
-      description: asText(event.description),
-      location: asText(event.location),
-      startAt,
-      endAt,
-      allDay,
-      timezone: normalizeTimezone(start.tz),
-      rrule: event.rrule ? event.rrule.toString() : null,
-    };
   }
-  return null;
+
+  if (!parent) {
+    return null;
+  }
+  return {
+    parent,
+    exceptions: [...overrides.values()].sort(
+      (a, b) =>
+        a.recurrenceId!.getTime() - b.recurrenceId!.getTime(),
+    ),
+    exdates: parent.exdates,
+  };
+}
+
+export function parseIcalEvent(ics: string): ParsedEvent | null {
+  return parseIcalSeries(ics)?.parent ?? null;
 }

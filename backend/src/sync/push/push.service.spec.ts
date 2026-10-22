@@ -55,6 +55,7 @@ function build(params: {
   pushError?: Error;
   openConflict?: unknown;
   remoteEvents?: unknown[];
+  exceptions?: unknown[];
 }): Harness {
   const push = jest.fn();
   const remove = jest.fn();
@@ -89,6 +90,9 @@ function build(params: {
     syncConflict: {
       findFirst: jest.fn().mockResolvedValue(params.openConflict ?? null),
       create: jest.fn().mockResolvedValue({ id: 'conf1' }),
+    },
+    eventException: {
+      findMany: jest.fn().mockResolvedValue(params.exceptions ?? []),
     },
   };
   const factory = {
@@ -168,6 +172,57 @@ describe('PushService', () => {
       'cal1',
       expect.objectContaining({ uid: 'remote', etag: '"old"' }),
     );
+  });
+
+  it('отправляет серию вместе с исключениями', async () => {
+    const { service, push } = build({
+      event: baseEvent({ rrule: 'FREQ=WEEKLY;BYDAY=TU;COUNT=6' }),
+      exceptions: [
+        {
+          id: 'ex1',
+          event_id: '11111111-1111-1111-1111-111111111111',
+          occurrence_at: new Date('2026-12-08T10:00:00.000Z'),
+          is_deleted: false,
+          title: 'Перенесено',
+          description: null,
+          start_at: new Date('2026-12-08T12:00:00.000Z'),
+          end_at: new Date('2026-12-08T13:00:00.000Z'),
+          all_day: null,
+          timezone: null,
+          location: null,
+          rrule: null,
+          external_etag: null,
+          sync_status: 'local',
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+        {
+          id: 'ex2',
+          event_id: '11111111-1111-1111-1111-111111111111',
+          occurrence_at: new Date('2026-12-15T10:00:00.000Z'),
+          is_deleted: true,
+          title: null,
+          description: null,
+          start_at: null,
+          end_at: null,
+          all_day: null,
+          timezone: null,
+          location: null,
+          rrule: null,
+          external_etag: null,
+          sync_status: 'local',
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ],
+    });
+
+    await service.pushEvent('11111111-1111-1111-1111-111111111111');
+
+    const ical = push.mock.calls[0][1].ical;
+    expect(ical).toContain('RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=6');
+    expect(ical).toContain('RECURRENCE-ID:20261208T100000Z');
+    expect(ical).toContain('EXDATE:20261215T100000Z');
   });
 
   it('удаляет внешний объект при мягком удалении события', async () => {

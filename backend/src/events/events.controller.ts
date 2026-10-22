@@ -14,6 +14,10 @@ import { EventsService } from './events.service';
 import {
   CreateEventDto,
   createEventSchema,
+  DeleteEventDto,
+  deleteEventSchema,
+  EventScopeDto,
+  eventScopeSchema,
   ListAllEventsDto,
   listAllEventsSchema,
   ListEventsDto,
@@ -74,14 +78,23 @@ export class EventsController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateEventSchema)) dto: UpdateEventDto,
+    @Query(new ZodValidationPipe(eventScopeSchema)) query: EventScopeDto,
   ) {
-    return this.events.update(user.id, id, dto);
+    return this.events.update(user.id, id, {
+      ...dto,
+      scope: dto.scope ?? query.scope,
+      occurrence_at: dto.occurrence_at ?? query.occurrence_at,
+    });
   }
 
   @HttpCode(200)
   @Delete('events/:id')
   @RequirePreset(['FULL', 'OWN'], 'event')
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.events.remove(user.id, id);
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query(new ZodValidationPipe(deleteEventSchema)) query: DeleteEventDto,
+  ) {
+    return this.events.remove(user.id, id, query);
   }
 }

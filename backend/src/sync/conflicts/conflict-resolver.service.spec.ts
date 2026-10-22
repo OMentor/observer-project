@@ -105,6 +105,9 @@ function build(overrides: { conflict?: unknown; connection?: unknown } = {}) {
         Promise.resolve({ id: args.where.id, ...args.data }),
       ),
     },
+    eventException: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
   const forcePush = jest

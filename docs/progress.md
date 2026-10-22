@@ -567,3 +567,23 @@ Flutter целиком: токены, тема Material, шрифты Onest/Lora
   `original_start_at`, `is_recurring` и id `<event-id>@<epoch-ms>`.
 - **Проверка**: jest **164/164**, `tsc`, ESLint и `nest build` — чисто; живой
   smoke на backend — серия раскрывается и пагинируется, timezone сохраняется.
+
+### Этап 7 — повторяющиеся события (Фаза 7.2) ✅
+
+- **API**: `PATCH/DELETE /events/:id` принимают `scope` (`single`/`all`) и
+  `occurrence_at` в теле или query; для серии без scope — `400`. RRULE
+  валидируется через `rrule` (проверка `freq`), а не только длиной строки.
+- **Сервис**: `scope=all` меняет/удаляет серию (при DELETE — вместе с
+  исключениями), `scope=single` делает upsert `EventException` только по
+  переданным полям; история (`event_history`) пишется в той же транзакции,
+  push ставится для родительской серии.
+- **Синхронизация**: pull разбирает `EXDATE`/`RECURRENCE-ID` (включая
+  группировку `recurrences` у `node-ical`), push собирает один `.ics` с
+  `RRULE`, `EXDATE` и override-`VEVENT`; исключения синхронизируются даже при
+  неизменном ETag родителя, устаревшие synced-исключения удаляются.
+- **Конфликты**: при `forcePush` серии исключения передаются в сериализатор,
+  чтобы не потеряться при разрешении конфликта.
+- **Проверка**: jest **192/192** (29 suites), `tsc`, ESLint и `nest build` —
+  чисто. Radicale E2E: серия 4 дня → push RRULE; удаление одного вхождения →
+  EXDATE; перенос одного вхождения → RECURRENCE-ID; API вернул 3 вхождения,
+  удалённое отсутствует, перенесённое — с новым временем.

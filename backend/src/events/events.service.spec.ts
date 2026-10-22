@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventsService } from './events.service';
 import { RecurrenceService } from './recurrence.service';
 
@@ -15,7 +19,11 @@ describe('EventsService', () => {
     space: { findMany: jest.Mock };
     eventHistory: { create: jest.Mock; findMany: jest.Mock };
     sourceExternalMap: { findFirst: jest.Mock };
-    eventException: { findMany: jest.Mock };
+    eventException: {
+      findMany: jest.Mock;
+      upsert: jest.Mock;
+      deleteMany: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let spaces: { getAccess: jest.Mock; ensureMember: jest.Mock };
@@ -60,7 +68,11 @@ describe('EventsService', () => {
       space: { findMany: jest.fn() },
       eventHistory: { create: jest.fn(), findMany: jest.fn() },
       sourceExternalMap: { findFirst: jest.fn().mockResolvedValue(null) },
-      eventException: { findMany: jest.fn().mockResolvedValue([]) },
+      eventException: {
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn().mockResolvedValue({ id: 'ex1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
     spaces = { getAccess: jest.fn(), ensureMember: jest.fn() };
@@ -450,5 +462,119 @@ describe('EventsService', () => {
     expect(args.where.source_id).toEqual({ in: ['src2'] });
     expect(args.skip).toBe(10);
     expect(args.take).toBe(10);
+  });
+
+  describe('scope повторяющихся событий', () => {
+    const recurringEvent = {
+      ...baseEvent,
+      rrule: 'FREQ=WEEKLY;BYDAY=TU;COUNT=6',
+    };
+    const occurrenceAt = new Date('2026-01-08T10:00:00.000Z');
+
+    beforeEach(() => {
+      prisma.source.findFirst.mockResolvedValue({ space_id: 'sp1' });
+      spaces.getAccess.mockResolvedValue({ isOwner: true, preset: 'FULL' });
+      prisma.event.findFirst.mockResolvedValue(recurringEvent);
+    });
+
+    it('PATCH scope=all обновляет родительское событие серии', async () => {
+      prisma.event.update.mockResolvedValue({
+        ...recurringEvent,
+        title: 'Новое название',
+      });
+
+      await service.update('u1', 'e1', {
+        scope: 'all',
+        title: 'Новое название',
+      });
+
+      expect(prisma.event.update).toHaveBeenCalled();
+      expect(prisma.eventException.upsert).not.toHaveBeenCalled();
+    });
+
+    it('PATCH scope=single создаёт исключение, не меняя родителя', async () => {
+      await service.update('u1', 'e1', {
+        scope: 'single',
+        occurrence_at: occurrenceAt,
+        title: 'Перенесено',
+      });
+
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      const call = prisma.eventException.upsert.mock.calls[0][0];
+      expect(call.where).toEqual({
+        event_id_occurrence_at: { event_id: 'e1', occurrence_at: occurrenceAt },
+      });
+      expect(call.create).toMatchObject({
+        event_id: 'e1',
+        occurrence_at: occurrenceAt,
+        title: 'Перенесено',
+        is_deleted: false,
+      });
+    });
+
+    it('PATCH scope=single повторно обновляет то же исключение', async () => {
+      await service.update('u1', 'e1', {
+        scope: 'single',
+        occurrence_at: occurrenceAt,
+        title: 'Перенесено',
+      });
+      await service.update('u1', 'e1', {
+        scope: 'single',
+        occurrence_at: occurrenceAt,
+        title: 'Перенесено ещё раз',
+      });
+
+      expect(prisma.eventException.upsert).toHaveBeenCalledTimes(2);
+      const call = prisma.eventException.upsert.mock.calls[1][0];
+      expect(call.update).toMatchObject({
+        title: 'Перенесено ещё раз',
+        is_deleted: false,
+      });
+    });
+
+    it('PATCH без scope для серии отклоняется', async () => {
+      await expect(
+        service.update('u1', 'e1', { title: 'Без scope' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it('DELETE scope=single помечает вхождение удалённым', async () => {
+      await service.remove('u1', 'e1', {
+        scope: 'single',
+        occurrence_at: occurrenceAt,
+      });
+
+      const call = prisma.eventException.upsert.mock.calls[0][0];
+      expect(call.create).toMatchObject({
+        event_id: 'e1',
+        occurrence_at: occurrenceAt,
+        is_deleted: true,
+      });
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it('DELETE scope=all удаляет родителя и все исключения', async () => {
+      await service.remove('u1', 'e1', { scope: 'all' });
+
+      expect(prisma.eventException.deleteMany).toHaveBeenCalledWith({
+        where: { event_id: 'e1' },
+      });
+      expect(prisma.event.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { deleted_at: expect.any(Date) },
+        }),
+      );
+    });
+
+    it('scope игнорируется для обычного события', async () => {
+      prisma.event.findFirst.mockResolvedValue(baseEvent);
+      prisma.event.update.mockResolvedValue({ ...baseEvent, title: 'Правка' });
+
+      await service.update('u1', 'e1', { scope: 'all', title: 'Правка' });
+
+      expect(prisma.event.update).toHaveBeenCalled();
+      expect(prisma.eventException.upsert).not.toHaveBeenCalled();
+    });
   });
 });

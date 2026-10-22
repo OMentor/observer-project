@@ -1,4 +1,11 @@
-import { parseIcalEvent } from './ical-parser';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { parseIcalEvent, parseIcalSeries } from './ical-parser';
+
+const recurrenceSeries = readFileSync(
+  join(__dirname, '__fixtures__', 'recurrence.spec.ics'),
+  'utf8',
+);
 
 function wrap(vevent: string): string {
   return [
@@ -82,6 +89,7 @@ describe('parseIcalEvent', () => {
 
     expect(parsed!.rrule).toContain('FREQ=WEEKLY');
     expect(parsed!.rrule).toContain('COUNT=10');
+    expect(parsed!.rrule).not.toContain('DTSTART');
   });
 
   it('учитывает часовой пояс (TZID)', () => {
@@ -131,5 +139,41 @@ describe('parseIcalEvent', () => {
     );
 
     expect(parseIcalEvent(ics)!.title).toBe('Без названия');
+  });
+
+  it('извлекает родителя серии, EXDATE и RECURRENCE-ID', () => {
+    const series = parseIcalSeries(recurrenceSeries);
+
+    expect(series).not.toBeNull();
+    expect(series!.parent.uid).toBe('series-1');
+    expect(series!.parent.title).toBe('Weekly Sync');
+    expect(series!.parent.rrule).toBe('FREQ=WEEKLY;COUNT=6;BYDAY=TU');
+    expect(series!.exdates.map((date) => date.toISOString())).toEqual([
+      '2026-11-04T15:00:00.000Z',
+    ]);
+    expect(series!.exceptions).toHaveLength(1);
+    expect(series!.exceptions[0]).toMatchObject({
+      uid: 'series-1',
+      title: 'Weekly Sync (moved)',
+      startAt: new Date('2026-10-28T17:00:00.000Z'),
+      endAt: new Date('2026-10-28T18:00:00.000Z'),
+      recurrenceId: new Date('2026-10-28T15:00:00.000Z'),
+    });
+  });
+
+  it('возвращает null, если в календаре только исключение без родителя', () => {
+    const ics = wrap(
+      [
+        'BEGIN:VEVENT',
+        'UID:orphan-1',
+        'RECURRENCE-ID:20261020T100000Z',
+        'DTSTAMP:20261015T090000Z',
+        'DTSTART:20261020T100000Z',
+        'DTEND:20261020T110000Z',
+        'END:VEVENT',
+      ].join(CRLF),
+    );
+
+    expect(parseIcalSeries(ics)).toBeNull();
   });
 });

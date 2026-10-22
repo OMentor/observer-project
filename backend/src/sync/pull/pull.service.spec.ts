@@ -1,7 +1,14 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../../realtime/realtime.service';
 import { ProviderFactory } from '../providers/provider.factory';
 import { PullService } from './pull.service';
+
+const recurrenceSeries = readFileSync(
+  join(__dirname, '..', 'ical', '__fixtures__', 'recurrence.spec.ics'),
+  'utf8',
+);
 
 function ics(uid: string, summary: string): string {
   return [
@@ -69,6 +76,10 @@ function build(params: {
     },
     externalConnection: {
       update: jest.fn().mockResolvedValue({}),
+    },
+    eventException: {
+      upsert: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
   };
   const realtime = { eventChanged: jest.fn().mockResolvedValue(undefined) };
@@ -208,6 +219,139 @@ describe('PullService', () => {
 
     expect(stats.deleted).toBe(0);
     expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('создаёт deleted-исключение из EXDATE', async () => {
+    const { service, prisma } = build({
+      pullResult: {
+        events: [
+          { uid: 'series-1', etag: 'etag-series', ical: recurrenceSeries },
+        ],
+      },
+    });
+
+    await service.pullSourceMap('map1');
+
+    const call = prisma.eventException.upsert.mock.calls
+      .map((item: any[]) => item[0])
+      .find(
+        (item: any) =>
+          item.where.event_id_occurrence_at.occurrence_at.toISOString() ===
+          '2026-11-04T15:00:00.000Z',
+      );
+    expect(call).toBeDefined();
+    expect(call.create).toMatchObject({
+      event_id: 'new-series-1',
+      is_deleted: true,
+      sync_status: 'synced',
+    });
+    expect(call.update).toMatchObject({ is_deleted: true });
+  });
+
+  it('создаёт override-исключение из RECURRENCE-ID', async () => {
+    const { service, prisma } = build({
+      pullResult: {
+        events: [
+          { uid: 'series-1', etag: 'etag-series', ical: recurrenceSeries },
+        ],
+      },
+    });
+
+    await service.pullSourceMap('map1');
+
+    const call = prisma.eventException.upsert.mock.calls
+      .map((item: any[]) => item[0])
+      .find(
+        (item: any) =>
+          item.where.event_id_occurrence_at.occurrence_at.toISOString() ===
+          '2026-10-28T15:00:00.000Z',
+      );
+    expect(call).toBeDefined();
+    expect(call.create).toMatchObject({
+      is_deleted: false,
+      title: 'Weekly Sync (moved)',
+      start_at: new Date('2026-10-28T17:00:00.000Z'),
+      end_at: new Date('2026-10-28T18:00:00.000Z'),
+    });
+  });
+
+  it('создаёт все исключения серии', async () => {
+    const multiple = recurrenceSeries.replace(
+      'END:VCALENDAR',
+      [
+        'BEGIN:VEVENT',
+        'UID:series-1',
+        'RECURRENCE-ID:20261111T150000Z',
+        'SUMMARY:Weekly Sync (second)',
+        'DTSTART:20261111T180000Z',
+        'DTEND:20261111T190000Z',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n'),
+    );
+    const { service, prisma } = build({
+      pullResult: {
+        events: [{ uid: 'series-1', etag: 'etag-series', ical: multiple }],
+      },
+    });
+
+    await service.pullSourceMap('map1');
+
+    const times = prisma.eventException.upsert.mock.calls.map((item: any[]) =>
+      item[0].where.event_id_occurrence_at.occurrence_at.toISOString(),
+    );
+    expect(times).toEqual(
+      expect.arrayContaining([
+        '2026-10-28T15:00:00.000Z',
+        '2026-11-04T15:00:00.000Z',
+        '2026-11-11T15:00:00.000Z',
+      ]),
+    );
+    expect(prisma.eventException.upsert).toHaveBeenCalledTimes(3);
+  });
+
+  it('синхронизирует исключения при неизменном ETag', async () => {
+    const existing = [
+      {
+        id: 'e1',
+        external_id: 'series-1',
+        external_etag: 'etag-series',
+        deleted_at: null,
+      },
+    ];
+    const { service, prisma } = build({
+      existing,
+      pullResult: {
+        events: [
+          { uid: 'series-1', etag: 'etag-series', ical: recurrenceSeries },
+        ],
+      },
+    });
+
+    const stats = await service.pullSourceMap('map1');
+
+    expect(stats).toEqual({ created: 0, updated: 0, deleted: 0, skipped: 1 });
+    expect(prisma.event.update).not.toHaveBeenCalled();
+    expect(prisma.eventException.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('удаляет устаревшие синхронизированные исключения', async () => {
+    const { service, prisma } = build({
+      pullResult: {
+        events: [
+          { uid: 'series-1', etag: 'etag-series', ical: recurrenceSeries },
+        ],
+      },
+    });
+
+    await service.pullSourceMap('map1');
+
+    const call = prisma.eventException.deleteMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({
+      event_id: 'new-series-1',
+      sync_status: 'synced',
+    });
+    expect(call.where.occurrence_at.notIn).toHaveLength(2);
   });
 
   it('переводит подключение в статус error и пробрасывает ошибку', async () => {

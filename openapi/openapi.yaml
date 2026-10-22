@@ -353,6 +353,18 @@ paths:
     patch:
       tags: [Events]
       summary: Изменить событие
+      description: >-
+        Для повторяющегося события требуется scope: single изменяет одно вхождение,
+        all — всю серию. scope и occurrence_at принимаются в теле или в query.
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EventScope' }
+        - name: occurrence_at
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
       requestBody:
         required: true
         content:
@@ -366,10 +378,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
+        '400': { description: Не указан scope для повторяющегося события }
       x-audience: [web, mobile]
     delete:
       tags: [Events]
       summary: Удалить событие
+      description: >-
+        Для повторяющегося события требуется scope: single удаляет одно вхождение,
+        all — всю серию вместе с исключениями.
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EventScope' }
+        - name: occurrence_at
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
       responses:
         '200':
           description: OK
@@ -377,6 +402,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+        '400': { description: Не указан scope для повторяющегося события }
       x-audience: [web, mobile]
 
   /spaces/{id}/tokens:
@@ -974,6 +1000,12 @@ components:
           description: >-
             true, если событие замаскировано для текущего пользователя
             (пресеты OWN для чужих событий и BUSY): скрыты title/description/location.
+    EventScope:
+      type: string
+      enum: [single, all]
+      description: >-
+        Область изменения повторяющегося события: single — только одно вхождение,
+        all — вся серия. Для события без rrule поле игнорируется.
     EventInput:
       type: object
       properties:
@@ -985,6 +1017,13 @@ components:
         timezone: { type: string }
         location: { type: string, nullable: true }
         rrule: { type: string, nullable: true }
+        scope:
+          $ref: '#/components/schemas/EventScope'
+        occurrence_at:
+          type: string
+          format: date-time
+          description: >-
+            Исходное время вхождения (RECURRENCE-ID). Обязательно при scope=single.
       required: [title, start_at, end_at]
     EventPage:
       type: object
