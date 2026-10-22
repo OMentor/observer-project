@@ -728,6 +728,16 @@ Playwright: подключение → связывание → событие �
 - `ConflictResolverService` при force-push серии передаёт исключения, чтобы
   не потерять их при разрешении конфликта.
 - Проверка: `tsc` 0, ESLint 0, `nest build` 0, jest **192/192**.
+- Воспроизводимый E2E: `backend/scripts/recurrence-e2e.ts`
+  (`npm run e2e:recurrence`) — создаёт временный Radicale-календарь, space,
+  source и connection, проверяет RRULE → EXDATE → RECURRENCE-ID и API-диапазон,
+  затем удаляет артефакты (`--keep` оставляет их для разбора). Параметры:
+  `--api`, `--caldav`, `--email`, `--password`, `--provider`,
+  `--caldav-username`, `--caldav-password`. Пароли в коде не хранятся:
+  `E2E_PASSWORD` обязателен; для Radicale с `auth=none` `CALDAV_PASSWORD`
+  может быть пустым, для auth-enabled — задаётся через env/аргумент. Реальные
+  значения не коммитить. `ts-node` входит в devDependencies, поэтому команда
+  работает из чистого клона после `npm install`.
 - Radicale E2E: серия `FREQ=DAILY;COUNT=4` → push `RRULE`; `DELETE
   scope=single` → `EXDATE` во внешнем `.ics`; `PATCH scope=single` →
   `RECURRENCE-ID` + изменённый `SUMMARY`; API-диапазон вернул 3 вхождения
